@@ -354,6 +354,10 @@ class Project(models.Model):
             return self.default_version
         return 'latest'
 
+#Should this be a self-referential through?
+class Subproject(models.Model):
+    parent = models.ForeignKey(Project, related_name="parents")
+    subprojects = models.ManyToManyField(Project, related_name="subprojects")
 
 class FileManager(models.Manager):
     def live(self, *args, **kwargs):
