@@ -1,7 +1,14 @@
 -r pip_requirements.txt
-psycopg2
-gunicorn
-pysolr
-python-memcached
-dnspython
-launchpadlib
+psycopg2==2.4
+gunicorn==0.12.1
+pysolr==2.0.13
+dnspython==1.9.4
+launchpadlib==1.9.8
+django-redis-cache==0.9.5
+
+#For resizing images
+pillow
+
+#Uncomment this if you want to index things in solr.
+pyquery==1.2.2
+cssselect==0.7.1

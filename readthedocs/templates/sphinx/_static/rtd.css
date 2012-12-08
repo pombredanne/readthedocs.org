@@ -52,7 +52,6 @@ div.bodywrapper {
 div.body {
     margin: 0;
     padding: 0.5em 1.3em;
-    max-width: 55em;
     min-width: 20em;
 }
 
@@ -253,7 +252,9 @@ div.sphinxsidebar img {
     max-width: 12em;
 }
 
-div.sphinxsidebar h3, div.sphinxsidebar h4 {
+div.sphinxsidebar h3,
+div.sphinxsidebar h4,
+div.sphinxsidebar p.logo {
     margin: 1.2em 0 0.3em 0;
     font-size: 1em;
     padding: 0;
@@ -380,6 +381,9 @@ div.sphinxsidebar p a:hover {
     color: #111;
     text-decoration: none;
     border: 1px solid #888;
+}
+div.sphinxsidebar p.logo a {
+    border: 0;
 }
 
 /* Tweak any link appearing in a heading */
@@ -532,7 +536,7 @@ div.warning p.admonition-title {
 
 /* Sidebars only */
 div.sidebar {
-  max-width: 200px;
+  max-width: 30%;
 }
 
 
@@ -586,6 +590,11 @@ div.footer {
 p {
     margin: 0.8em 0 0.5em 0;
 }
+
+.section p img.math {
+    margin: 0;
+}
+
 
 .section p img {
     margin: 1em 2em;
@@ -742,13 +751,13 @@ p {
         padding: 1em;
     }
 
-    .rtd_doc_footer .badge {
+    .rtd_doc_footer .rtd-badge {
         float: none;
         margin: 1em auto;
         position: static;
     }
 
-    .rtd_doc_footer .badge.revsys-inline {
+    .rtd_doc_footer .rtd-badge.revsys-inline {
         margin-right: auto;
         margin-bottom: 2em;
     }

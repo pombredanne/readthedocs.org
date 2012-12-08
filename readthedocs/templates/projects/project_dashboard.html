@@ -1,8 +1,14 @@
-{% extends "dashboard/base_dashboard.html" %}
+{% extends "base.html" %}
+{% load i18n %}
+{% load pagination_tags %}
 
-{% block title %}Project Dashboard{% endblock %}
+{% block title %}{% trans "Project Dashboard" %}{% endblock %}
 
-{% block nav-dashboard %}class="active"{% endblock %}
+{% block dashboard_bar %}
+  {% with projects_active="active" %}
+    {% include "dashboard/dashboard_bar.html" %}
+  {% endwith %}
+{% endblock %}
 
 {% block dash-nav-projects %}active{% endblock %}
 
@@ -13,8 +19,42 @@
           <div class="module">
             <div class="module-wrapper">
 
+              <p class="empty">
+                Check out the <a href="http://docs.readthedocs.org/en/latest/index.html">documentation for Read the Docs</a>. It contains lots of information about how to get the most out of RTD.
+              </p>
+
+              {% if filter|length > 0 %}
+
+                <div class="module-header">
+                  <h3>{% trans "Important Versions" %}</h3>
+                </div>
+
+                <div class="filter">
+                  {% autopaginate filter 15 %}
+
+                  <!-- BEGIN filter list -->
+                  <div class="module">
+                    <div class="module-wrapper">
+
+                      <div class="module-list">
+                        <div class="module-list-wrapper">
+                          <ul>
+                            {% include "core/filter_list.html" %}
+                          </ul>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                  <!-- END filter list -->
+
+                  {% paginate %}
+                </div>
+
+              {% endif %}
+
               <div class="module-header">
-                <h3>My Projects</h3>
+                <h3>{% trans "My Projects" %}</h3>
               </div>
 
               <div class="module-list">
@@ -25,17 +65,15 @@
                       <li class="module-item col-span">
                         <a href="{% url projects_manage project.slug %}">{{ project.name }}</a>
                         <ul class="module-item-menu">
-                          {% if not project.is_imported %}
-                            <li><a href="{% url projects_manage project.slug %}">Manage Files</a></li>
-                          {% endif %}
-                          {% if project.has_versions %}
-                            <li><a href="{% url projects_versions project.slug %}" rel="nofollow,noindex">Versions</a></li>
-                        {% endif %}
+                          <li><a href="{% url projects_users project.slug %}">{% trans "Admins" %}</a></li>
+                          <li><a href="{% url projects_versions project.slug %}" rel="nofollow,noindex">{% trans "Versions" %}</a></li>
+                          <li><a href="{% url projects_subprojects project.slug %}">{% trans "Subprojects" %}</a></li>
+                          <li><a href="{% url projects_edit project.slug %}">{% trans "Edit" %}</a></li>
                           {% if project.has_aliases %}
-                            <li><a href="{% url projects_alias_list project.slug %}" rel="nofollow,noindex">Aliases</a></li>
-                        {% endif %}
-                          <li><a href="{% url projects_edit project.slug %}">Edit</a></li>
-                          <li><a href="{{ project.get_docs_url }}">View Docs</a></li>
+                            <li><a href="{% url projects_alias_list project.slug %}" rel="nofollow,noindex">{% trans "Aliases" %}</a></li>
+                          {% endif %}
+                          <li>&nbsp;&nbsp;</li>
+                          <li><a href="{{ project.get_docs_url }}">{% trans "View Docs" %}</a></li>
                         </ul>
                       </li>
                     {% endfor %}
@@ -43,12 +81,13 @@
 
                 </div>
               </div>
-
             </div>
           </div>
           {% else %}
-          <p class="empty">You don't have any projects.  You can <a href="{% url projects_create %}">create new docs</a> on the site, or <a href="{% url projects_import %}">import docs</a> from a public repo. <br>
-           Check out the <a href="http://readthedocs.org/docs/read-the-docs/latest/getting_started.html">Getting Started</a> documentation for information about how to get going.</p>
+          {% url projects_import as projects_import_url %}
+          <p class="empty">
+          {% blocktrans with "https://read-the-docs.readthedocs.org/en/latest/getting_started.html" as getting_started_url %}You don't have any projects.  You should <a href="{{ projects_import_url }}">create new docs</a> on the site.<br>
+          Check out the <a href="{{ getting_started_url }}">Getting Started</a> documentation for information about how to get going.{% endblocktrans %}</p>
           {% endif %}
           <!-- END your projects list -->
 
@@ -58,7 +97,7 @@
           <div class="module">
             <div class="module-wrapper">
               <div class="module-header">
-                <h3>Recently Bookmarked Docs <span class="small_head"><a href="{% url user_bookmarks %}">(All My Bookmarks)</a></span></h3>
+                <h3>{% trans "Recently Bookmarked Docs" %} <span class="small_head"><a href="{% url user_bookmarks %}">{% trans "(All My Bookmarks)" %}</a></span></h3>
               </div>
 
               <div class="module-list">

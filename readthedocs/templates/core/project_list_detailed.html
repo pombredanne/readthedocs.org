@@ -1,22 +1,27 @@
+{% load i18n %}
 
 {% for project in project_list %}
   <li class="module-item">
     <a class="module-item-title" href="{{ project.get_absolute_url }}">{{ project.name }}</a>
-    <a href="{{ project.user.get_absolute_url }}" class="quiet">({{ project.user }})</a>
-    <span class="quiet">{{ project.get_latest_build.date|timesince }} ago</span>
+    (
+    {% for user in project.users.all %}
+    <a href="{{ user.get_absolute_url }}" class="quiet">{{ user }}</a>{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+    )
+    <span class="right-menu quiet">{% blocktrans with date=project.modified_date|timesince %}{{ date }} ago{% endblocktrans %}</span>
     <ul class="module-item-menu">
       {% if project.has_good_build %}
         <span class="hidden-child" style="display: none;">
-            {% for version in project.active_versions reversed %}
+            {% for version in project.ordered_active_versions reversed %}
                 <li><a href="{{ version.get_absolute_url }}">{{ version.slug }}</a></li>
             {% endfor %}
         </span>
-        <li><a href="{{ project.get_docs_url }}">View Docs</a></li>
+        <li><a href="{{ project.get_docs_url }}">{% trans "View Docs" %}</a></li>
       {% else %}
-        <li><a href="{{ project.get_builds_url }}">No Docs</a></li>
+        <li><a href="{{ project.get_builds_url }}">{% trans "No Docs" %}</a></li>
       {% endif %}
     </ul>
   </li>
 {% empty %}
-  <li class="module-item quiet">No projects found</li>
+  <li class="module-item quiet">{% trans "No projects found" %}</li>
 {% endfor %}

@@ -1,33 +1,64 @@
-{% extends "projects/base_project_editing.html" %}
+{% extends "projects/base_project.html" %}
+
+{% load i18n %}
 
 {% load pagination_tags %}
 
 {% block title %}Builds{% endblock %}
 
+{% block project_editing %}
+    {% with builds_active="active" %}
+        {% include "core/project_bar.html" %}
+    {% endwith %}
+{% endblock %}
+
 {% block content %}
+<div id="build_list">
 
-          {% autopaginate build_list 15 %}
+        {% comment %}
+        <form action="" method="get">
+            {{ filter.form.as_p }}
+            <input type="submit" value="Filter" />
+        </form>
+        {% endcomment %}
 
-          <!-- BEGIN builds list -->
-          <div class="module">
-            <div class="module-wrapper">
+        {% autopaginate build_list 15 %}
 
-              <div class="module-header">
-                <h3>Recent Builds</h3>
-              </div>
+        <!-- BEGIN builds list -->
+        <div class="module">
+          <div class="module-wrapper">
 
-              <div class="module-list">
-                <div class="module-list-wrapper">
-                  <ul>
-                    {% include "core/build_list_detailed.html" %}
-                  </ul>
-                </div>
-              </div>
-
+            <div class="module-header">
+              <h1>{% trans "Recent Builds" %}</h1>
             </div>
+
+            <div class="module-list">
+              <div class="module-list-wrapper">
+                <ul>
+                  {% include "core/build_list_detailed.html" %}
+                </ul>
+              </div>
+            </div>
+
           </div>
-          <!-- END builds list -->
+        </div>
+        <!-- END builds list -->
 
-          {% paginate %}
+        {% paginate %}
 
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+  <script type="text/javascript" src="{{ MEDIA_URL }}javascript/build_updater.js"></script>
+
+  <script type="text/javascript">
+    $(function() {
+      {% for build in active_builds %}
+        new BuildListUpdater({{ build.id }}).startPolling();
+      {% endfor %}
+    });
+  </script>
 {% endblock %}

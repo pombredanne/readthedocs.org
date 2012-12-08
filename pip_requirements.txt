@@ -1,27 +1,36 @@
-docutils
-simplejson
-sphinx
-celery
-django-celery
-django-kombu
-importlib
-django-extensions
-django-haystack
-mimeparse
-django-profiles
-mercurial
-bzr
-github2
-httplib2
-distutils2
-Unipath
-django
-BeautifulSoup
-unittest-xml-reporting
-redis
--e git+http://github.com/nathanborror/django-basic-apps.git#egg=basic
--e hg+http://bitbucket.org/andrewgodwin/south/#egg=south
--e git+http://github.com/alex/django-taggit.git#egg=taggit
--e git+http://github.com/ericflo/django-pagination.git#egg=pagination
--e git+http://github.com/nathanborror/django-registration.git#egg=django-registration
--e git+https://github.com/toastdriven/django-tastypie.git#egg=tastypie
+# Pypi ftw.
+Distutils2==1.0a3
+Sphinx==1.1.2
+Unipath==0.2.1
+bzr==2.5b4
+celery-haystack==0.6.2
+celery==3.0.9
+django-celery==3.0.9
+django-extensions==0.7.1
+django-guardian==1.0.4
+django-kombu==0.9.4
+django-profiles==0.2
+django-secure==0.1.2
+django==1.4.2
+docutils==0.8.1
+github2==0.5.2
+httplib2==0.7.2
+mercurial==2.4
+mimeparse==0.1.3
+redis==2.7.1
+simplejson==2.3.0
+slumber==0.4.2
+south==0.7.6
+sphinx-http-domain==0.2
+unittest-xml-reporting==1.3.1
+
+
+# Pegged git requirements
+git+git://github.com/toastdriven/django-haystack@259274e4127f723d76b893c87a82777f9490b960#egg=django_haystack
+git+git://github.com/alex/django-filter.git#egg=django-filter
+git+git://github.com/alex/django-taggit.git@36f6dabcf10e27c7d9442a94243d4189f2a4f121#egg=django_taggit-dev
+git+git://github.com/ericflo/django-pagination.git@e5f669036c#egg=django_pagination-dev
+git+git://github.com/nathanborror/django-basic-apps.git@171fdbe21a0dbbb38919a383cc265cb3cbc73771#egg=django_basic_apps-dev
+git+git://github.com/nathanborror/django-registration.git@dc0b564b7bfb79f58592fe8ad836729a85ec17ae#egg=django_registration-dev
+git+git://github.com/toastdriven/django-tastypie.git@c5451b90b18b0cb64841b2276d543230d5f58231#egg=django_tastypie-dev
+

@@ -1,34 +1,119 @@
-{% extends "projects/base_project_editing.html" %}
+{% extends "projects/base_project.html" %}
+
+{% load i18n %}
 
 {% block title %}{{ build.project.name }}{% endblock %}
 
-{% block content-header %}<h1>Build for {{ build.project.name }}</h1>{% endblock %}
+
+{% block project_editing %}
+    {% with builds_active="active" %}
+        {% include "core/project_bar.html" %}
+    {% endwith %}
+{% endblock %}
+
+{% block content-header %}<h1>{% blocktrans with build.project.name as project_name %}Build for {{ project_name }}{% endblocktrans %}</h1>{% endblock %}
 
 {% block content %}
-  <p>Built: {{ build.date|date:"N j, Y. P" }}</p>
+  <div id="build-{{ build.id }}">
+    <p>{% blocktrans with build.date|date:"N j, Y. P" as build_date %}Built: {{ build_date }}{% endblocktrans %}</p>
 
-  <p>Outcome: <b>{{ build.success|yesno:"Passed,Failed" }}</b></p>
+    <p>{% trans "Outcome:" %} <b><span id="build-success">{% if build.success %}{% trans "Passed" %}{% else %}{% trans "Failed" %}{% endif %}</span></b></p>
 
-  {% if build.version %}
-  <p>Version: <b>{{ build.version.slug }}</b></p>
-  {% endif %}
+    {% if build.version %}
+    <p>{% trans "Version:" %} <b>{{ build.version.slug }}</b></p>
+    {% endif %}
 
-  <h3>Sphinx Standard Output</h3>
-  <pre class="build-output">{{ build.output }}</pre>
+    <p>{% trans "Type:" %} <b>{{ build.type }}</b></p>
 
-  {% if build.error %}
-  <h3>Sphinx Standard Error</h3>
-  <pre class="build-error">{{ build.error }}</pre>
-  {% endif %}
+    <p>{% trans "State:" %} <b><span id="build-state">{{ build.get_state_display }}</span></b>
+      <img src="{{ MEDIA_URL }}images/loader.gif" class="hide build-loading">
+    </p>
 
-  {% if build.setup %}
-  <h3>Setup Output</h3>
-  <pre class="build-output">{{ build.setup }}</pre>
-  {% endif %}
+    <h3>{% trans "Sphinx Standard Output" %}</h3>
+    <pre class="build-output"><span id="build-output">{{ build.output }}</span></pre>
 
-  {% if build.setup_error %}
-  <h3>Environment Standard Error</h3>
-  <pre class="build-error">{{ build.setup_error }}</pre>
-  {% endif %}
+    {% if build.error %}
+    <h3>{% trans "Sphinx Standard Error" %}</h3>
+    <pre class="build-error"><span id="build-error">{{ build.error }}</span></pre>
+    {% endif %}
 
+    {% if build.setup %}
+    <h3>{% trans "Setup Output" %}</h3>
+    <pre class="build-output"><span id="build-setup">{{ build.setup }}</span></pre>
+    {% endif %}
+
+    {% if build.setup_error %}
+    <h3>{% trans "Environment Standard Error" %}</h3>
+    <pre class="build-error"><span id="build-setup_error">{{ build.setup_error }}</span></pre>
+    {% endif %}
+  </div>
+    <form id="form" style="display: none;">
+        <input type="submit">
+    </form>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+  <script type="text/javascript" src="{{ MEDIA_URL }}javascript/build_updater.js"></script>
+
+  <script type="text/javascript">
+    $(function() {
+        new BuildUpdater({{ build.id }}).startPolling();
+    });
+
+    $(function() {
+        var WS = false;
+        if (window.WebSocket) WS = WebSocket;
+        if (!WS && window.MozWebSocket) WS = MozWebSocket;
+        if (!WS)
+            alert('Your browser does not seem to support Websockets.');
+
+        var $results = $('#results');
+        var $form = $('#form');
+        var $url = $('#url');
+        var $status = $('#status');
+        var $build_output = $('#build-output');
+
+        var ws = new WS('ws://localhost:8088/websocket');
+        ws.send_json = function(data) {
+            this.send(JSON.stringify(data));
+        }
+        ws.onopen = function() {
+            console.log('websocket connected');
+            $form.submit()
+        };
+        ws.onmessage = function(message) {
+            console.log(message);
+            var data = JSON.parse(message.data);
+            switch (data.cmd) {
+                case 'status':
+                    $build_output.append(data.status);
+                    window.scrollBy(0,50);
+                    break;
+                case 'result':
+                    console.log(data.result);
+                    var result = data.result;
+                    var $result = $('<tr/>')
+                    $result.append($('<td>' + result.status_code + '</td>'))
+                    $result.append($('<td>' + result.url + '</td>'))
+                    $result.append($('<td>' + result.length + '</td>'))
+                    $result.append($('<td>' + (result.duration*1000) + '</td>'))
+                    $results.append($result);
+                    break;
+            }
+        };
+        ws.onclose = function() {
+            console.log('websocket closed');
+        };
+        $form.bind('submit', function(e) {
+            e.preventDefault();
+            //var url = $url.val();
+            ws.send_json({cmd: 'tail', url: '/tmp/docs-build-{{ build.id }}'});
+            //$form.hide()
+            console.log(url);
+        });
+
+    });
+
+  </script>
 {% endblock %}

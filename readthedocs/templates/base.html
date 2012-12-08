@@ -1,39 +1,45 @@
+{% load i18n %}
+
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-  
+
   <!-- meta -->
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <link rel="icon" type="image/png" href="{{ MEDIA_URL }}images/favicon.png">
 
   <!-- title -->
-  <title>{% block title %}{% endblock %} | Read the Docs</title>
+  <title>{% block title %}{% endblock %} | {% block branding %}{% trans "Read the Docs" %} {% endblock %}</title>
 
   <!-- css -->
   <link rel="stylesheet" href="{{ MEDIA_URL }}css/core.css">
   {% block extra_links %}{% endblock %}
 
-  <!-- js -->
-    
-    <!-- jquery -->
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js"></script>
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.4/jquery-ui.min.js"></script>
+  <!-- jquery -->
+  <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js"></script>
+  <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jqueryui/1.8.4/jquery-ui.min.js"></script>
 
-    <!-- typekit -->
-    <script type="text/javascript" src="http://use.typekit.com/xgl8ypn.js"></script>
-    <script type="text/javascript">try{Typekit.load();}catch(e){}</script>
-    
+  <script type="text/javascript" src="{{ MEDIA_URL }}javascript/instantsearch.js"></script>
 
-    <script type="text/javascript" src="{{ MEDIA_URL }}javascript/rtd.js"></script>
+  {% block extra_scripts %}{% endblock %}
 
-    {% block extra_scripts %}{% endblock %}
+  <!-- typekit -->
+  <!-- Old typekit
+  <script type="text/javascript" src="//use.typekit.com/xgl8ypn.js"></script>
+  <script type="text/javascript">try{Typekit.load();}catch(e){}</script>
+  -->
+
+  <script type="text/javascript" src="//use.typekit.net/haq4xtp.js"></script>
+  <script type="text/javascript">try{Typekit.load();}catch(e){}</script>
 
 </head>
 
 <body class="{% block body_class %}{% endblock %}">
 
-    {% block header-wrapper %}{% include "core/header.html" %}{% endblock %}
+    {% block header-wrapper %}
+        {% include "core/header.html" %}
+    {% endblock %}
 
     {% block dashboard_bar %}{% endblock %}
 
@@ -45,8 +51,8 @@
 
         {% if request.GET.docs_not_built %}
           <div class="notification">
-            <p>You docs are currently being built.  It may take a moment for them to appear.</p>
-            <p>Read the Docs thanks you for your continued patience.</p>
+            <p>{% trans "You docs are currently being built.  It may take a moment for them to appear." %}</p>
+            <p>{% trans "Read the Docs thanks you for your continued patience." %}</p>
           </div>
         {% endif %}
 
@@ -63,13 +69,22 @@
     <!-- BEGIN footer-->
     <div id="footer">
       <div class="wrapper">
-        
+
         <hr>
 
         {% block footer-content %}
-        <p>2010.  Created by <a href="http://ericholscher.com/">Eric Holscher</a>, <a href="http://charlesleifer.com/">Charles Leifer</a>, and <a href="http://bobbygrace.info/">Bobby Grace</a> for the 2010 <a href="http://djangodash.com/">Django Dash</a>. 
+        <p>{% blocktrans with "<a href='http://ericholscher.com/'>Eric Holscher</a>" as eric and "<a href='http://charlesleifer.com/'>Charles Leifer<a>" as charles and "<a href='http://bobbygrace.info/'>Bobby Grace</a>" as bobby and "<a href='http://djangodash.com/'>Django Dash</a>" as djangodash %}2010. Created by {{ eric }}, {{ charles }}, and {{ bobby }} for the 2010 {{ djangodash }}.{% endblocktrans %}
+        </p>
+        <a href="http://github.com/rtfd/readthedocs.org">Github</a> | <a href="http://read-the-docs.readthedocs.org">{%  trans "Docs" %}</a>.
 
-        <a href="http://github.com/rtfd/readthedocs.org">Github</a> | <a href="http://read-the-docs.readthedocs.org">Docs</a>. Sponsored by <a href="http://revsys.com">RevSys</a>, <a href="http://www.python.org/psf/">The Python Software Foundation</a>, and <a href="http://blog.mozilla.com/webdev/">Mozilla Web Dev</a>.</p> 
+       </p>
+       <p>
+
+       {% trans 'Thanks for believing in us: <a href="http://revsys.com">RevSys</a>, <a href="http://www.python.org/psf/">Python Software Foundation</a>, <a href="http://blog.mozilla.com/webdev/">Mozilla Web Dev</a>, <a href="https://www.djangoproject.com/foundation/">Django Software Foundation</a>, <a href="http://lab305.com">Lab305</a>, and <a href="http://enn.io/">enn.io</a>.' %}
+        </p>
+        <p>
+        {% trans 'Made by <a href="https://github.com/rtfd/readthedocs.org/graphs/contributors">humans</a>. Funded by <a href="https://www.gittip.com/readthedocs/">readers like you</a>.' %}
+        </p>
         {% endblock %}
 
       </div>
@@ -94,11 +109,13 @@
   $('.rtfd-header-search input:text').autocomplete({
     source: '{% url search_autocomplete %}',
     minLength: 2,
-    open: function(event, ui) { 
-      ac_top = $('.ui-autocomplete').css('top'); 
-      $('.ui-autocomplete').css({'width': '233px', 'top': ac_top + 10 }); 
+    open: function(event, ui) {
+      ac_top = $('.ui-autocomplete').css('top');
+      $('.ui-autocomplete').css({'width': '233px', 'top': ac_top + 10 });
     }
   });
+
+  {% block footerjs %}{% endblock %}
 
 </script>
 <!-- END google analytics -->

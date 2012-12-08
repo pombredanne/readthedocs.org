@@ -1,23 +1,44 @@
 from fabric.api import *
 from fabric.decorators import runs_once
+import time
 
 env.runtime = 'production'
-env.hosts = ['chimera.ericholscher.com', 'ladon.ericholscher.com', 'mozbuild.ericholscher.com']
+env.hosts = ['chimera.ericholscher.com', 'ladon.ericholscher.com', 'build.ericholscher.com', 'mozbuild.ericholscher.com']
 env.user = 'docs'
 env.code_dir = '/home/docs/sites/readthedocs.org/checkouts/readthedocs.org'
 env.virtualenv = '/home/docs/sites/readthedocs.org'
 env.rundir = '/home/docs/sites/readthedocs.org/run'
 
+@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+def remove_project(project):
+    run('rm -rf %s/user_builds/%s' % (env.code_dir, project))
+
+@hosts(['asgard.ericholscher.com'])
+def nginx_logs():
+    env.user = "root"
+    run("tail -f /var/log/nginx/*.log")
+
+@hosts(['localhost'])
+def i18n():
+    with lcd('readthedocs'):
+        local('rm -rf rtd_tests/tests/builds/')
+        local('tx pull')
+        local('./manage.py makemessages --all')
+        local('tx push -s')
+        local('./manage.py compilemessages')
+
 def push():
     "Push new code, but don't restart/reload."
     local('git push origin master')
     with cd(env.code_dir):
-        run('git pull origin master')
+        run('git fetch')
+        run('git reset --hard origin/master')
 
 def update_requirements():
     "Update requirements in the virtualenv."
-    run("%s/bin/pip install -r %s/deploy_requirements.txt" % (env.virtualenv, env.code_dir))
+    run("%s/bin/pip install -i http://simple.crate.io/ -r %s/deploy_requirements.txt" % (env.virtualenv, env.code_dir))
 
+@hosts(['chimera.ericholscher.com'])
 def migrate(project=None):
     if project:
         run('django-admin.py migrate %s' % project)
@@ -25,12 +46,36 @@ def migrate(project=None):
         run('django-admin.py migrate')
 
 @hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+def static():
+    "Restart (or just start) the server"
+    run('django-admin.py collectstatic --noinput')
+
+@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
 def restart():
     "Restart (or just start) the server"
     env.user = "root"
     run("restart readthedocs-gunicorn")
+    #so it has time to reload
+    time.sleep(3)
 
-@hosts(['mozbuild.ericholscher.com'])
+@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+def reload():
+    "Restart (or just start) the server"
+    env.user = "docs"
+    pid = run("ps aux |grep gunicorn |grep master |awk '{ print $2 }'")
+    run('kill -HUP %s' % pid)
+    #so it has time to reload
+    time.sleep(3)
+
+"""
+@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+def reload():
+    "Reload (or just start) the server"
+    env.user = "root"
+    run("reload readthedocs-gunicorn")
+"""
+
+@hosts(['build.ericholscher.com'])
 #@hosts(['kirin.ericholscher.com'])
 def celery():
     "Restart (or just start) the server"
@@ -49,11 +94,11 @@ def spider():
 def _aws_wrapper(f, *args, **kwargs):
     "get AWS credentials if not defined"
     #these are normally defined in ~/.fabricrc
-    @hosts('run_once') #so fab doesn't go crazy 
+    @hosts('run_once') #so fab doesn't go crazy
     def wrapped(*args, **kwargs):
         from boto.cloudfront.exception import CloudFrontServerError
         from boto.cloudfront import CloudFrontConnection
-        c = CloudFrontConnection(env.aws_access_key_id, 
+        c = CloudFrontConnection(env.aws_access_key_id,
                                  env.aws_secret_access_key)
         if not hasattr(env, 'aws_access_key_id'):
             prompt('AWS Access Key ID: ', key='aws_access_key_id')
@@ -71,12 +116,12 @@ def to_cdn(c, slug):
     from boto.cloudfront import CloudFrontConnection
     from boto.cloudfront.origin import CustomOrigin
 
-    c = CloudFrontConnection(env.aws_access_key_id, 
+    c = CloudFrontConnection(env.aws_access_key_id,
                              env.aws_secret_access_key)
     d = c.create_distribution(
         origin=CustomOrigin(slug + '.cdn.readthedocs.org',
                             origin_protocol_policy='http-only'),
-        enabled=True, 
+        enabled=True,
         comment='Slug: ' + slug,
         cnames=[slug + '.readthedocs.org']
         )
@@ -88,8 +133,8 @@ def list_cdn(c):
     "List Distributions on CloudFront"
     distributions = c.get_all_distributions()
     for d in distributions:
-        print "%3s %4s %40s %30s" % ('Ena' if d.enabled else 'Dis', 
-                                     d.status[:4], d.origin.dns_name, 
+        print "%3s %4s %40s %30s" % ('Ena' if d.enabled else 'Dis',
+                                     d.status[:4], d.origin.dns_name,
                                      d.domain_name)
 
 @_aws_wrapper
@@ -114,14 +159,21 @@ def delete_cdn(c):
             distro.get_distribution().delete()
 
 
-@hosts(['chimera.ericholscher.com'])
 def full_deploy():
-    push()
-    update_requirements()
-    migrate()
-    restart()
-    celery()
+    #HACK
+    #Call this again at the top-level so the hosts decorator
+    #effects the hosts it runs against for each command.
+    run('fab push update_requirements migrate restart celery')
+    #push()
+    #update_requirements()
+    #migrate()
+    #restart()
+    #celery()
 
 @hosts(['chimera.ericholscher.com'])
 def uptime():
     run('uptime')
+
+@hosts(['chimera.ericholscher.com'])
+def update_index():
+    run('django-admin.py update_index')

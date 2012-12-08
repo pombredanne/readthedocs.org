@@ -1,59 +1,85 @@
 {% extends "!layout.html" %}
 
-{% set script_files = [] %}
+#Strip out the default script files we provide, but keep some, like mathjax.
+{% set script_files = script_files[3:] %}
 
 {% block htmltitle %}
 {{ super() }}
-<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js"></script>
+<!-- RTD <head> -->
+<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
 <script type="text/javascript" src="{{ MEDIA_URL }}javascript/underscore.js"></script>
 <script type="text/javascript" src="{{ MEDIA_URL }}javascript/doctools.js"></script>
-<script type="text/javascript" src="{{ MEDIA_URL }}javascript/searchtools.js"></script>
 {% if using_theme %}
   <meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=1.0; user-scalable=0;"/>
-
 {% endif %}
-  <script type="text/javascript">
-    var doc_version = "{{ current_version }}";
-    var doc_slug = "{{ slug }}";
-  </script>
-  <script type="text/javascript" src="{{ MEDIA_URL }}javascript/rtd.js"></script>
+<script type="text/javascript">
+  // This is included here for Javascript that doesn't have access to the templates.
+  var doc_version = "{{ current_version }}";
+  var doc_slug = "{{ slug }}";
+</script>
+{#
+We include the media servers version here so we can update rtd.js across all
+documentation without rebuilding every one. If this script is embedded in each build, then updating the file across all docs is basically impossible.
+#}
+<script type="text/javascript" src="{{ MEDIA_URL }}javascript/rtd.js"></script>
+<!-- end RTD <head> -->
 {% endblock %}
 
 {% block sidebarlogo %}
 {{ super() }}
 {% if using_theme %}
-{% if versions %}
-    <h3>Project Versions</h3>
-    <ul id="sidebar_versions">
-{% for slug, url in versions %}
-  <li><a href="http://readthedocs.org{{ url }}">{{ slug }}</a></li>
-{% endfor %}
+    {% if versions %}
+            <h3>Project Versions</h3>
+            <ul id="sidebar_versions">
+        {% for slug, url in versions %}
+          <li><a href="{{ url }}">{{ slug }}</a></li>
+        {% endfor %}
+            </ul>
+    {% endif %}
+    <div id="searchbox" style="">
+      <h3>RTD Search</h3>
+        <form class="search" action="//{{ PRODUCTION_DOMAIN }}/search/project/" method="get">
+          <input type="text" name="q" size="18">
+          <input type="submit" value="Go">
+          <input type="hidden" name="selected_facets" value="project_exact:{{ name }}">
+        </form>
+        <p class="searchtip" style="font-size: 90%">
+            Full-text doc search.
+        </p>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block sidebarsourcelink %}
+  {% if show_source and has_source and sourcename or display_github %}
+    <h3>{{ _('This Page') }}</h3>
+    <ul class="this-page-menu">
+      {% if show_source and has_source and sourcename %}
+        <li><a href="{{ pathto('_sources/' + sourcename, true)|e }}"
+               rel="nofollow">{{ _('Show Source') }}</a></li>
+      {% endif %}
+      {% if display_github %}
+        <li><a href="https://github.com/{{ github_user }}/{{ github_repo }}/blob/{{ github_version }}{{ conf_py_path }}{{ pagename }}.rst">
+          Show on GitHub</a></li>
+        <li><a href="https://github.com/{{ github_user }}/{{ github_repo }}/edit/{{ github_version }}{{ conf_py_path }}{{ pagename }}.rst">
+          Edit on GitHub</a></li>
+      {% endif %}
     </ul>
-<div id="searchbox" style="">
-  <h3>RTD Search</h3>
-    <form class="search" action="http://readthedocs.org/search/project/" method="get">
-      <input type="text" name="q" size="18">
-      <input type="submit" value="Go">
-      <input type="hidden" name="selected_facets" value="project:{{ name }}">
-    </form>
-    <p class="searchtip" style="font-size: 90%">
-        Full-text doc search.
-    </p>
-</div>
-{% endif %}
-{% endif %}
+  {% endif %}
 {% endblock %}
 
 {% block footer %}
 {{ super() }}
  <!-- End original user content -->
+{# Keep this here, so that the RTD logo doesn't stomp on the bottom of the theme. #}
 {% if not using_theme %}
-<hr>
+<br>
+<br>
+<br>
 {% endif %}
 
-
 <style type="text/css">
-  .badge {
+  .rtd-badge {
     position: fixed;
     display: block;
     bottom: 5px;
@@ -107,33 +133,37 @@
     -moz-box-shadow: 0 1px 0px #465158;
     -webkit-box-shadow: 0 1px 0px #465158;
   }
-  .badge.rtd {
-    background: #257597 url(http://media.readthedocs.org/images/badge-rtd.png) top left no-repeat;
+  .rtd-badge.rtd {
+    background: #3b4449 url({{ MEDIA_URL }}/images/badge-rtd.png) scroll 0px -46px no-repeat;
     border: 1px solid #282E32;
-    width: 160px;
+    width: 41px;
     right: 5px;
   }
-  .badge.revsys { background: #465158 url(http://media.readthedocs.org/images/badge-revsys.png) top left no-repeat;
+  .footer_popout:hover .rtd-badge.rtd {
+    background-position: top left;
+    width: 160px;
+  }
+  .rtd-badge.revsys { background: #465158 url({{ MEDIA_URL }}/images/badge-revsys.png) top left no-repeat;
     border: 1px solid #1C5871;
     width: 290px;
     right: 173px;
   }
-  .badge.revsys-inline-sponsored {
+  .rtd-badge.revsys-inline-sponsored {
     position: inherit;
     margin-left: auto;
     margin-right: 175px;
     margin-bottom: 5px;
-    background: #465158 url(http://media.readthedocs.org/images/badge-revsys.png) top left no-repeat;
+    background: #465158 url({{ MEDIA_URL }}/images/badge-revsys.png) top left no-repeat;
     border: 1px solid #1C5871;
     width: 290px;
     right: 173px;
   }
-  .badge.revsys-inline {
+  .rtd-badge.revsys-inline {
     position: inherit;
     margin-left: auto;
     margin-right: 175px;
     margin-bottom: 5px;
-    background: #465158 url(http://media.readthedocs.org/images/badge-revsys-sm.png) top left no-repeat;
+    background: #465158 url({{ MEDIA_URL }}/images/badge-revsys-sm.png) top left no-repeat;
     border: 1px solid #1C5871;
     width: 205px;
     right: 173px;
@@ -144,10 +174,10 @@
 </style>
 <div class="rtd_doc_footer">
   <div class="footer_popout">
-    <a href="http://readthedocs.org/projects/{{ slug }}/?fromdocs={{ slug }}" class="badge rtd">Brought to you by Read the Docs</a>
+    <a href="//{{ PRODUCTION_DOMAIN }}/projects/{{ slug }}/?fromdocs={{ slug }}" class="rtd-badge rtd"> Brought to you by Read the Docs</a>
     <ul id="version_menu">
       {% for slug, url in versions %}
-        <li><a href="http://readthedocs.org{{ url }}">{{ slug }}</a></li>
+        <li><a href="{{ url }}">{{ slug }}</a></li>
       {% endfor %}
     </ul>
   </div>

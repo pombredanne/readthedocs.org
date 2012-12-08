@@ -25,11 +25,14 @@ Site Documentation
     :maxdepth: 2
 
     getting_started
-    builds
-    features
+    faq
     support
+    features
+    privacy
     webhooks
     alternate_domains
+    sponsors
+    builds
     talks
 
 Developer Documentation
@@ -38,8 +41,18 @@ Developer Documentation
     :maxdepth: 2
 
     install
+    todo
+    contribute
     architecture
     settings
     tests
+    i18n
     api
     api/index
+
+Operations Documentation
+------------------------
+.. toctree::
+    :maxdepth: 2
+
+    rtfd

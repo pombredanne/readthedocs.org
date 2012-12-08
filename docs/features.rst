@@ -3,6 +3,34 @@ Read the Docs features
 
 This will serve as a list of all of the features that Read the Docs currently has. Some features are important enough to have their own page in the docs, others will simply be listed here.
 
+Github Integration
+------------------
+
+We now support linking to GitHub by default in the sidebar. It links to the page on GitHub, and directly links to the edit view as well. This should help people quickly update typos and send pull requests to contribute to project documentation.
+
+If you want to integrate this into your own theme, the following variables are available in your custom templates:
+
+* github_user - GitHub username
+* github_repo - GitHub repo name
+* github_version - Github blob
+* conf_py_path - Path in the checkout to the docs root
+* pagename - Sphinx variable representing the name of the page you're on.
+* display_github
+
+It can be used like this::
+
+      {% if display_github %}
+        <li><a href="https://github.com/{{ github_user }}/{{ github_repo }}/blob/{{ github_version }}{{ conf_py_path }}{{ pagename }}.rst">
+          Show on GitHub</a></li>
+        <li><a href="https://github.com/{{ github_user }}/{{ github_repo }}/edit/{{ github_version }}{{ conf_py_path }}{{ pagename }}.rst">
+          Edit on GitHub</a></li>
+      {% endif %}
+
+Screenshot
+~~~~~~~~~~
+
+.. image:: /img/edit_on_github.png
+
 
 Auto-updating
 -------------
@@ -71,3 +99,5 @@ Then usage is pretty similar. You reference something using normal sphinx syntax
     :mod:`Intersphinx <sphinx:sphinx.ext.intersphinx>`
 
 This will create a link to the official Sphinx documentation for intersphinx.
+
+More information can be found on Reinout van Rees' blog: http://reinout.vanrees.org/weblog/2012/12/01/django-intersphinx.html

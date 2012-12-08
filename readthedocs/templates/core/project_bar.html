@@ -1,3 +1,4 @@
+{% load i18n %}
 
     <!-- BEGIN project bar -->
     <div id="project_bar">
@@ -5,55 +6,57 @@
 
         <div class="project-title">
           <h1><a href="{{ project.get_absolute_url }}">{{ project }}</a></h1>
-          <a href="{{ project.user.get_absolute_url }}" class="quiet">({{ project.user }})</a>
+          (
+          {% for user in project.users.all %}
+          <a href="{{ user.get_absolute_url }}" class="quiet">{{ user }}</a>{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+          )
+          {% comment %}
           {% if project.version %}<span class="quiet">version {{ project.version }} </span>{% endif %}
+          {% endcomment %}
         </div>
 
         <div class="options">
 
           {% if project.get_latest_build %}
-            {% if not project.get_latest_build.success %}
-              <p class="build-failure">Build failed (<a href="{{ project.get_builds_url }}">why</a>)</p>
+            {% if not project.get_latest_build.success and project.get_latest_build.state == 'finished' %}
+                <p class="build-failure">{% blocktrans with project.get_builds_url as url %}Build failed (<a href="{{ url }}">why</a>){% endblocktrans %}</p>
             {% endif %}
           {% else %}
-            <p class="build-missing">There are no builds for this project.{% if request.user == project.user %} <a href="{% url projects_edit project.slug %}">Is the repo correct?</a>{% endif %}</p>
+            <p class="build-missing"{% trans "There are no builds for this project" %}>.{% if request.user in project.users.all %} <a href="{% url projects_edit project.slug %}">{% trans "Is the repo correct?" %}</a>{% endif %}</p>
           {% endif %}
 
           <ul>
+              <li class="{{ overview_active }}"><a href="{{ project.get_absolute_url }}">{% trans "Overview" %}</a></li>
             {% if project.has_good_build %}
-              <li {% block editing-option-view %}{% endblock %}><a href="{{ project.get_docs_url }}">View Docs</a></li>
+              <li><a href="{{ project.get_docs_url }}">{% trans "View Docs" %}</a></li>
             {% endif %}
 
-            {% if request.user == project.user %}
-              {% if not project.is_imported %}
-                <li {% block editing-option-manage %}{% endblock %}><a href="{% url projects_manage project.slug %}">Manage Files</a></li>
-              {% endif %}
-              <li {% block editing-option-edit-proj %}{% endblock %}><a href="{% url projects_edit project.slug %}">Edit Project</a></li>
-            {% endif %}
+            <li class="{{ downloads_active }}"><a href="{% url project_downloads project.slug %}" rel="nofollow,noindex">Downloads</a></li>
 
             {% if project.get_latest_build %}
-              <li {% block editing-option-builds %}{% endblock %}><a href="{{ project.get_builds_url }}">Builds</a></li>
+              <li class="{{ builds_active }}"><a href="{{ project.get_builds_url }}">{% trans "Builds" %}</a></li>
             {% endif %}
 
-            {% if project.project_url %}
-              <li><a href="{{ project.project_url }}" rel="nofollow,noindex">Project Homepage</a></li>
+            <li>&nbsp;&nbsp;</li>
+
+            {% if request.user in project.users.all %}
+                <li><a href="{% url projects_users project.slug %}">{% trans "Admins" %}</a></li>
             {% endif %}
 
-            {% if project.has_versions and request.user == project.user %}
-              <li><a href="{% url projects_versions project.slug %}" rel="nofollow,noindex">Versions</a></li>
+            {% if project.has_versions and request.user in project.users.all %}
+              <li class="{{ versions_active }}"><a href="{% url projects_versions project.slug %}" rel="nofollow,noindex">{% trans "Versions" %}</a></li>
             {% endif %}
 
-            {% if project.has_pdf %}
-              <li><a href="{{ project.get_pdf_url }}" rel="nofollow,noindex">PDF</a></li>
+            {% if request.user in project.users.all %}
+              <li class="{{ subprojects_active }}"><a href="{% url projects_subprojects project.slug %}">{% trans "Subprojects" %}</a></li>
             {% endif %}
 
-            {% if project.has_manpage %}
-              <li><a href="{{ project.get_manpage_url }}" rel="nofollow,noindex">Manpage (Beta)</a></li>
+            {% if request.user in project.users.all %}
+              <li class="{{ edit_active }}"><a href="{% url projects_edit project.slug %}">{% trans "Edit" %} </a></li>
             {% endif %}
 
-            {% if project.has_epub %}
-              <li><a href="{{ project.get_epub_url }}" rel="nofollow,noindex">Epub (Beta)</a></li>
-            {% endif %}
+
           </ul>
         </div>
 

@@ -5,14 +5,16 @@ import os
 import re
 import subprocess
 import traceback
+import logging
+from httplib2 import Http
+
+from django.conf import settings
 
 from distutils2.version import NormalizedVersion, suggest_normalized_version
-from django.conf import settings
-from httplib2 import Http
 import redis
 
-from projects.libs.diff_match_patch import diff_match_patch
 
+log = logging.getLogger(__name__)
 
 def find_file(file):
     """Find matching filenames in the current directory and its subdirectories,
@@ -25,7 +27,7 @@ def find_file(file):
     return matches
 
 
-def run(*commands):
+def run(*commands, **kwargs):
     """
     Run one or more commands, and return ``(status, out, err)``.
     If more than one command is given, then this is equivalent to
@@ -36,14 +38,24 @@ def run(*commands):
     """
     environment = os.environ.copy()
     environment['READTHEDOCS'] = 'True'
+    if environment.has_key('DJANGO_SETTINGS_MODULE'):
+        del environment['DJANGO_SETTINGS_MODULE']
+    if environment.has_key('PYTHONPATH'):
+        del environment['PYTHONPATH']
     cwd = os.getcwd()
     if not commands:
         raise ValueError("run() requires one or more command-line strings")
+    shell = kwargs.get('shell', False)
 
     for command in commands:
-        print("Running: '%s'" % command)
+        if shell:
+            log.info("Running commands in a shell")
+            run_command = command
+        else:
+            run_command = command.split()
+        log.info("Running: '%s'" % command)
         try:
-            p = subprocess.Popen(command.split(), shell=False, cwd=cwd,
+            p = subprocess.Popen(run_command, shell=shell, cwd=cwd,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                  env=environment)
 
@@ -53,17 +65,9 @@ def run(*commands):
             out = ''
             err = traceback.format_exc()
             ret = -1
-            print "Command failed: %s" % err
+            log.error("Command failed", exc_info=True)
 
     return (ret, out, err)
-
-
-dmp = diff_match_patch()
-
-def diff(txt1, txt2):
-    """Create a 'diff' from txt1 to txt2."""
-    patch = dmp.patch_make(txt1, txt2)
-    return dmp.patch_toText(patch)
 
 
 def safe_write(filename, contents):
@@ -87,17 +91,21 @@ def _custom_slugify(data):
 def slugify_uniquely(model, initial, field, max_length, **filters):
     slug = _custom_slugify(initial)[:max_length]
     current = slug
-    index = 0
+    """
     base_qs = model.objects.filter(**filters)
     while base_qs.filter(**{field: current}).exists():
         suffix = '-%s' % index
         current = '%s%s'  % (slug[:-len(suffix)], suffix)
         index += 1
+    """
     return current
 
 def mkversion(version_obj):
     try:
-        ver =  NormalizedVersion(suggest_normalized_version(version_obj.slug))
+        if hasattr(version_obj, 'slug'):
+            ver =  NormalizedVersion(suggest_normalized_version(version_obj.slug))
+        else:
+            ver =  NormalizedVersion(suggest_normalized_version(version_obj['slug']))
         return ver
     except TypeError:
         return None
@@ -127,17 +135,17 @@ def purge_version(version, mainsite=False, subdomain=False, cname=False):
                 headers = {'Host': host}
                 url = "/en/%s/*" % version.slug
                 to_purge = "http://%s%s" % (server, url)
-                print "Purging %s on %s" % (url, host)
+                log.info("Purging %s on %s" % (url, host))
                 ret = h.request(to_purge, method="PURGE", headers=headers)
             if mainsite:
                 headers = {'Host': "readthedocs.org"}
                 url = "/docs/%s/en/%s/*" % (version.project.slug, version.slug)
                 to_purge = "http://%s%s" % (server, url)
-                print "Purging %s on readthedocs.org" % url
+                log.info("Purging %s on readthedocs.org" % url)
                 ret = h.request(to_purge, method="PURGE", headers=headers)
                 root_url = "/docs/%s/" % version.project.slug
                 to_purge = "http://%s%s" % (server, root_url)
-                print "Purging %s on readthedocs.org" % root_url
+                log.info("Purging %s on readthedocs.org" % root_url)
                 ret2 = h.request(to_purge, method="PURGE", headers=headers)
             if cname:
                 redis_conn = redis.Redis(**settings.REDIS)
@@ -145,13 +153,31 @@ def purge_version(version, mainsite=False, subdomain=False, cname=False):
                     headers = {'Host': cnamed}
                     url = "/en/%s/*" % version.slug
                     to_purge = "http://%s%s" % (server, url)
-                    print "Purging %s on %s" % (url, cnamed)
-                    ret = h.request(to_purge, method="PURGE", headers=headers)
+                    log.info("Purging %s on %s" % (url, cnamed))
+                    h.request(to_purge, method="PURGE", headers=headers)
                     root_url = "/"
                     to_purge = "http://%s%s" % (server, root_url)
-                    print "Purging %s on %s" % (root_url, cnamed)
-                    ret2 = h.request(to_purge, method="PURGE", headers=headers)
+                    log.info("Purging %s on %s" % (root_url, cnamed))
+                    h.request(to_purge, method="PURGE", headers=headers)
 
 class DictObj(object):
     def __getattr__(self, attr):
         return self.__dict__.get(attr)
+
+
+def make_api_version(version_data):
+    from builds.models import Version
+    del version_data['resource_uri']
+    project_data = version_data['project']
+    project = make_api_project(project_data)
+    version_data['project'] = project
+    ver = Version(**version_data)
+    return ver
+
+def make_api_project(project_data):
+    from projects.models import Project
+    for key in ['users', 'resource_uri', 'absolute_url', 'downloads']:
+        if project_data.has_key(key):
+            del project_data[key]
+    project = Project(**project_data)
+    return project

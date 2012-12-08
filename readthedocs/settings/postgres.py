@@ -6,7 +6,7 @@ DATABASES = {
         'NAME': 'docs',
         'USER': 'postgres',                      # Not used with sqlite3.
         'PASSWORD': '',
-        'HOST': 'golem',
+        'HOST': '10.177.73.97',
         'PORT': '',
     }
 }
@@ -15,13 +15,37 @@ DEBUG = False
 TEMPLATE_DEBUG = False
 CELERY_ALWAYS_EAGER = False
 
-MEDIA_URL = 'http://media.readthedocs.org/'
+MEDIA_URL = '//media.readthedocs.org/'
+STATIC_URL = '//media.readthedocs.org/static/'
 ADMIN_MEDIA_PREFIX = MEDIA_URL + 'admin/'
-CACHE_BACKEND = 'memcached://localhost:11211/'
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 
-HAYSTACK_SEARCH_ENGINE = 'solr'
-HAYSTACK_SOLR_URL = 'http://odin:8983/solr'
+HAYSTACK_CONNECTIONS = {
+    'default': {
+        'ENGINE': 'haystack.backends.solr_backend.SolrEngine',
+        'URL': 'http://odin:8983/solr',
+    }
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'redis_cache.RedisCache',
+        'LOCATION': 'localhost:6379',
+        'PREFIX': 'docs',
+        'OPTIONS': {
+            'DB': 1,
+            'PARSER_CLASS': 'redis.connection.HiredisParser'
+        },
+    },
+}
+
+SLUMBER_API_HOST = 'https://readthedocs.org'
+WEBSOCKET_HOST = 'websocket.readthedocs.org:8088'
+
+PRODUCTION_DOMAIN = 'readthedocs.org'
+USE_SUBDOMAIN = True
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTOCOL", "https")
 
 
 

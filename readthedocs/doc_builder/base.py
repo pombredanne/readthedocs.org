@@ -1,6 +1,8 @@
 from functools import wraps
 import os
+import logging
 
+log = logging.getLogger(__name__)
 
 def restoring_chdir(fn):
     #XXX:dc: This would be better off in a neutral module
@@ -22,26 +24,26 @@ class BaseBuilder(object):
     """
 
     workflow = ['clean', 'build', 'move']
+    force = False
 
     def __init__(self, version):
         self.version = version
 
-    def run(self):
+    def run(self, **kwargs):
         for step in self.workflow:
             fn = getattr(self, step)
             result = fn()
             assert result
 
     @restoring_chdir
-    def force(self):
+    def force(self, **kwargs):
         """
         An optional step to force a build even when nothing has changed.
         """
-        print "Forcing a build by touching files"
-        os.chdir(self.version.project.conf_dir(self.version.slug))
-        os.system('touch * && touch */*')
+        log.info("Forcing a build")
+        self.force = True
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Clean up the version so it's ready for usage.
 
@@ -52,13 +54,13 @@ class BaseBuilder(object):
         """
         raise NotImplementedError
 
-    def build(self):
+    def build(self, id=None, **kwargs):
         """
         Do the actual building of the documentation.
         """
         raise NotImplementedError
 
-    def move(self):
+    def move(self, **kwargs):
         """
         Move the documentation from it's generated place to its final home.
 

@@ -1,4 +1,3 @@
-import os
 from os.path import exists
 import shutil
 from tempfile import mkdtemp
@@ -21,27 +20,16 @@ class TestCeleryBuilding(RTDTestCase):
         super(TestCeleryBuilding, self).setUp()
         self.eric = User.objects.get(username='eric')
         self.project = Project.objects.create(
-            user=self.eric,
             name="Test Project",
             repo_type="git",
             #Our top-level checkout
             repo=repo,
         )
+        self.project.users.add(self.eric)
 
     def tearDown(self):
         shutil.rmtree(self.repo)
         super(TestCeleryBuilding, self).tearDown()
-
-    def test_update_docs(self):
-        """
-        Test that a superuser can use the API
-        """
-        result = tasks.update_docs.delay(pk=self.project.pk)
-        assert result.successful()
-        assert result.result == True
-        self.assertTrue(os.path.exists(
-            os.path.join(self.project.rtd_build_path(), 'index.html')
-        ))
 
     def test_remove_dir(self):
         directory = mkdtemp()

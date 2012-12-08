@@ -1,6 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
+
 setup(
     name='readthedocs',
     version="1.0",
@@ -10,6 +11,7 @@ setup(
     author_email='eric@ericholscher.com',
     url='http://readthedocs.org',
     packages=find_packages(),
+    include_package_data=True,
     zip_safe=False,
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -20,5 +22,4 @@ setup(
         'Programming Language :: Python',
         'Framework :: Django',
     ],
-    #test_suite='readthedocs.tests.rtd_tests.runtests'
 )

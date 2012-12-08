@@ -1,13 +1,11 @@
+{% load i18n %}
+
 {% if built %}
-    <a href="{{ url }}">(Built)</a>
-    {#<img src="{{ MEDIA_URL }}images/icon-built.png" alt="built" />#}
+    <a href="{{ url }}">({% trans "Built" %})</a>
 {% else %}
     {% if uploaded %}
-        <a href="{{ url }}">(Uploaded)</a>
-        {#<img src="{{ MEDIA_URL }}images/icon-not-built.png" alt="not built" />#}
+        <a href="{{ url }}">({% trans "Uploaded" %})</a>
     {% else %}
-        (Not built)
-        {#<img src="{{ MEDIA_URL }}images/icon-not-built.png" alt="not built" />#}
-
+        ({% trans "Not built" %})
     {% endif %}
 {% endif %}
