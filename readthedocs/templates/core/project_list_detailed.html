@@ -3,24 +3,47 @@
 {% for project in project_list %}
   <li class="module-item">
     <a class="module-item-title" href="{{ project.get_absolute_url }}">{{ project.name }}</a>
-    (
-    {% for user in project.users.all %}
-    <a href="{{ user.get_absolute_url }}" class="quiet">{{ user }}</a>{% if not forloop.last %}, {% endif %}
-    {% endfor %}
-    )
-    <span class="right-menu quiet">{% blocktrans with date=project.modified_date|timesince %}{{ date }} ago{% endblocktrans %}</span>
-    <ul class="module-item-menu">
-      {% if project.has_good_build %}
-        <span class="hidden-child" style="display: none;">
-            {% for version in project.ordered_active_versions reversed %}
-                <li><a href="{{ version.get_absolute_url }}">{{ version.slug }}</a></li>
-            {% endfor %}
-        </span>
-        <li><a href="{{ project.get_docs_url }}">{% trans "View Docs" %}</a></li>
+
+    {% with project.users.all as users %}
+
+      {% if users|length > 1 %}
+      ({% for user in project.users.all|slice:":3" %}
+        {% if omit and user.pk != omit.pk %}
+          <a href="{{ user.get_absolute_url }}" class="quiet user">{{ user }}</a>
+        {% endif %}
+        {% if not omit %}
+          <a href="{{ user.get_absolute_url }}" class="quiet user">{{ user }}</a>
+        {% endif %}
+      {% endfor %})
       {% else %}
-        <li><a href="{{ project.get_builds_url }}">{% trans "No Docs" %}</a></li>
+        {% if omit and users.0.pk == omit.pk %}{% else %}{% with project.users.all.0 as user %}
+          (<a href="{{ user.get_absolute_url }}" class="quiet user">{{ user }}</a>)
+        {% endwith %}
+        {% endif %}
       {% endif %}
+    {% endwith %}
+    <span class="right-menu quiet">{% blocktrans with date=project.modified_date|timesince %}{{ date }} ago{% endblocktrans %}</span>
+
+    {% if project.has_good_build %}
+    <span class="dropdown" style="position:absolute; right:0px; top:0px;">
+      <span>
+          <a href="{{ project.get_docs_url }}">{% trans "View Docs" %}</a>
+        <a href="#">&#x25BC;</a>
+      </span>
+      <ul>
+          <li><input type="search" placeholder="{% trans "Search" %}&hellip;" /></li>
+          {% for version in project.ordered_active_versions reversed %}
+              <li><a href="{{ version.get_absolute_url }}">{{ version.slug }}</a></li>
+          {% endfor %}
+      </ul> 
+    </span>
+    {% else %}
+    <ul class="module-item-menu">
+      <li><a href="{{ project.get_builds_url }}">{% trans "No Docs" %}</a></li>
     </ul>
+    {% endif %}
+
+
   </li>
 {% empty %}
   <li class="module-item quiet">{% trans "No projects found" %}</li>

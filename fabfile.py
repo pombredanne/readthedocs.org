@@ -1,22 +1,60 @@
-from fabric.api import *
+from fabric.api import cd, env, lcd, local, hosts, prompt, run
 from fabric.decorators import runs_once
+
+import os
 import time
 
 env.runtime = 'production'
-env.hosts = ['chimera.ericholscher.com', 'ladon.ericholscher.com', 'build.ericholscher.com', 'mozbuild.ericholscher.com']
+env.hosts = ['newchimera.readthedocs.com',
+             'newbuild.readthedocs.com',
+             'newasgard.readthedocs.com']
 env.user = 'docs'
-env.code_dir = '/home/docs/sites/readthedocs.org/checkouts/readthedocs.org'
-env.virtualenv = '/home/docs/sites/readthedocs.org'
-env.rundir = '/home/docs/sites/readthedocs.org/run'
+env.code_dir = '/home/docs/checkouts/readthedocs.org'
+env.virtualenv = '/home/docs/'
+env.rundir = '/home/docs/run'
 
-@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+fabfile_dir = os.path.dirname(__file__)
+
+@hosts(['newchimera.readthedocs.com', 'newasgard.readthedocs.com'])
 def remove_project(project):
     run('rm -rf %s/user_builds/%s' % (env.code_dir, project))
 
-@hosts(['asgard.ericholscher.com'])
+def ntpdate():
+    run('ntpdate-debian')
+
+## Logging Awesomeness
+
+@hosts(['newasgard.readthedocs.com', 'newchimera.readthedocs.com'])
 def nginx_logs():
     env.user = "root"
     run("tail -f /var/log/nginx/*.log")
+
+@hosts(['newbuild.readthedocs.com'])
+def celery_logs():
+    env.user = "docs"
+    run("tail -f tail -f ~/log/celery.err")
+
+@hosts(['newasgard.readthedocs.com', 'newchimera.readthedocs.com'])
+def logs():
+    env.user = "docs"
+    run("tail -f %s/logs/*.log" % env.code_dir)
+
+@hosts(['newasgard.readthedocs.com', 'newchimera.readthedocs.com'])
+def postcommit_logs():
+    env.user = "docs"
+    run("tail -f %s/logs/postcommit.log" % env.code_dir)
+
+@hosts(['newasgard.readthedocs.com', 'newchimera.readthedocs.com'])
+def cat_postcommit_logs():
+    env.user = "docs"
+    run("cat %s/logs/postcommit.log" % env.code_dir)
+
+@hosts(['newasgard.readthedocs.com', 'newchimera.readthedocs.com'])
+def api_logs():
+    env.user = "docs"
+    run("tail -f %s/logs/api.log" % env.code_dir)
+
+## Normal bits
 
 @hosts(['localhost'])
 def i18n():
@@ -27,6 +65,7 @@ def i18n():
         local('tx push -s')
         local('./manage.py compilemessages')
 
+
 def push():
     "Push new code, but don't restart/reload."
     local('git push origin master')
@@ -34,67 +73,66 @@ def push():
         run('git fetch')
         run('git reset --hard origin/master')
 
+
 def update_requirements():
     "Update requirements in the virtualenv."
-    run("%s/bin/pip install -i http://simple.crate.io/ -r %s/deploy_requirements.txt" % (env.virtualenv, env.code_dir))
+    run(("%s/bin/pip install -i http://simple.crate.io/ -r "
+         "%s/deploy_requirements.txt") % (env.virtualenv, env.code_dir))
 
-@hosts(['chimera.ericholscher.com'])
+
+@hosts(['newchimera.readthedocs.com'])
 def migrate(project=None):
     if project:
         run('django-admin.py migrate %s' % project)
     else:
         run('django-admin.py migrate')
 
-@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+@hosts(['newchimera.readthedocs.com'])
+def syncdb(project=None):
+    run('django-admin.py syncdb')
+
+@hosts(['newchimera.readthedocs.com', 'newasgard.readthedocs.com'])
 def static():
     "Restart (or just start) the server"
     run('django-admin.py collectstatic --noinput')
 
-@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+
+@hosts(['newchimera.readthedocs.com', 'newasgard.readthedocs.com'])
 def restart():
     "Restart (or just start) the server"
-    env.user = "root"
-    run("restart readthedocs-gunicorn")
-    #so it has time to reload
-    time.sleep(3)
-
-@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
-def reload():
-    "Restart (or just start) the server"
     env.user = "docs"
-    pid = run("ps aux |grep gunicorn |grep master |awk '{ print $2 }'")
-    run('kill -HUP %s' % pid)
+    run("supervisorctl restart web")
     #so it has time to reload
     time.sleep(3)
 
-"""
-@hosts(['chimera.ericholscher.com', 'ladon.ericholscher.com'])
+
+@hosts(['newchimera.readthedocs.com', 'newasgard.readthedocs.com'])
 def reload():
     "Reload (or just start) the server"
-    env.user = "root"
-    run("reload readthedocs-gunicorn")
-"""
+    run("supervisorctl update")
 
-@hosts(['build.ericholscher.com'])
-#@hosts(['kirin.ericholscher.com'])
+
+@hosts(['newbuild.readthedocs.com'])
 def celery():
     "Restart (or just start) the server"
-    env.user = "root"
-    run("restart readthedocs-celery")
+    run("supervisorctl restart celery")
+
 
 def pull():
     "Pull new code"
     with cd(env.code_dir):
         run('git pull origin master')
 
+
 @runs_once
 def spider():
     local('patu.py -d1 readthedocs.org')
 
+
 def _aws_wrapper(f, *args, **kwargs):
     "get AWS credentials if not defined"
     #these are normally defined in ~/.fabricrc
-    @hosts('run_once') #so fab doesn't go crazy
+    @hosts('run_once')  # so fab doesn't go crazy
     def wrapped(*args, **kwargs):
         from boto.cloudfront.exception import CloudFrontServerError
         from boto.cloudfront import CloudFrontConnection
@@ -110,6 +148,7 @@ def _aws_wrapper(f, *args, **kwargs):
             print "Error: \n", e.error_message
     return wrapped
 
+
 @_aws_wrapper
 def to_cdn(c, slug):
     "Create a new Distribution object on CloudFront"
@@ -124,9 +163,10 @@ def to_cdn(c, slug):
         enabled=True,
         comment='Slug: ' + slug,
         cnames=[slug + '.readthedocs.org']
-        )
+    )
     print "Created: " + d.domain_name + " for " + slug
     list_cdn()
+
 
 @_aws_wrapper
 def list_cdn(c):
@@ -136,6 +176,7 @@ def list_cdn(c):
         print "%3s %4s %40s %30s" % ('Ena' if d.enabled else 'Dis',
                                      d.status[:4], d.origin.dns_name,
                                      d.domain_name)
+
 
 @_aws_wrapper
 def disable_cdn(c, *args):
@@ -149,12 +190,13 @@ def disable_cdn(c, *args):
             #fix is to comment out lines 347-352 in cloudfront/distribution.py
             distro.get_distribution().disable()
 
+
 @_aws_wrapper
 def delete_cdn(c):
     "Deletes all Distributions in the 'Disabled' state."
     distributions = c.get_all_distributions()
     for distro in distributions:
-        if not distro.enabled and distro.status=="Deployed":
+        if not distro.enabled and distro.status == "Deployed":
             print "Deleting", distro.origin.dns_name
             distro.get_distribution().delete()
 
@@ -170,10 +212,24 @@ def full_deploy():
     #restart()
     #celery()
 
-@hosts(['chimera.ericholscher.com'])
+
+@hosts(['newchimera.readthedocs.com'])
 def uptime():
     run('uptime')
 
-@hosts(['chimera.ericholscher.com'])
+
+@hosts(['newchimera.readthedocs.com'])
 def update_index():
     run('django-admin.py update_index')
+
+@hosts('None')
+def update_theme():
+    with lcd(os.path.join(fabfile_dir, 'readthedocs', 'templates', 'sphinx')):
+        local('rm -rf theme_update_dir')
+        local('git clone https://github.com/snide/sphinx_rtd_theme.git theme_update_dir')
+        local('rm -rf sphinx_rtd_theme')
+        local('mv theme_update_dir/sphinx_rtd_theme .')
+        local('cp -r sphinx_rtd_theme/static/font/ %s' % os.path.join(fabfile_dir, 'media', 'font'))
+        local('cp sphinx_rtd_theme/static/css/badge_only.css %s' % os.path.join(fabfile_dir, 'media', 'css'))
+        local('cp sphinx_rtd_theme/static/css/theme.css %s' % os.path.join(fabfile_dir, 'media', 'css', 'sphinx_rtd_theme.css'))
+        local('rm -rf theme_update_dir')

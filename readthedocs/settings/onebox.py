@@ -1,4 +1,4 @@
-from .base import *
+from .base import *  # noqa
 
 DATABASES = {
     'default': {
@@ -25,11 +25,11 @@ HAYSTACK_CONNECTIONS = {
 
 CACHES = {
     'default': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': 'localhost:6379',
+        'BACKEND': 'redis_cache.cache.RedisCache',
+        'LOCATION': 'localhost:6379:1',
         'PREFIX': 'docs',
         'OPTIONS': {
-            'DB': 1,
+            'CLIENT_CLASS': 'redis_cache.client.DefaultClient',
         },
     },
 }
@@ -40,10 +40,7 @@ SLUMBER_API_HOST = 'http://localhost:8000'
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTOCOL", "https")
 SESSION_COOKIE_DOMAIN = None
 
-TEST_RUNNER = 'xmlrunner.extra.djangotestrunner.XMLTestRunner'
-TEST_OUTPUT_VERBOSE = True
-TEST_OUTPUT_DESCRIPTIONS = True
-TEST_OUTPUT_DIR = os.path.join(SITE_ROOT, 'xml_output')
+TEST_RUNNER = 'django_nose.NoseTestSuiteRunner'
 
 SLUMBER_USERNAME = 'test'
 SLUMBER_PASSWORD = 'test'
@@ -58,6 +55,6 @@ DONT_HIT_DB = False
 
 
 try:
-    from local_settings import *
+    from local_settings import *  # noqa
 except:
     pass

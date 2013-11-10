@@ -16,6 +16,7 @@ import redis
 
 log = logging.getLogger(__name__)
 
+
 def find_file(file):
     """Find matching filenames in the current directory and its subdirectories,
     and return a list of matching filenames.
@@ -38,9 +39,9 @@ def run(*commands, **kwargs):
     """
     environment = os.environ.copy()
     environment['READTHEDOCS'] = 'True'
-    if environment.has_key('DJANGO_SETTINGS_MODULE'):
+    if 'DJANGO_SETTINGS_MODULE' in environment:
         del environment['DJANGO_SETTINGS_MODULE']
-    if environment.has_key('PYTHONPATH'):
+    if 'PYTHONPATH' in environment:
         del environment['PYTHONPATH']
     cwd = os.getcwd()
     if not commands:
@@ -53,11 +54,11 @@ def run(*commands, **kwargs):
             run_command = command
         else:
             run_command = command.split()
-        log.info("Running: '%s'" % command)
+        log.info("Running: '%s' [%s]" % (command, cwd))
         try:
             p = subprocess.Popen(run_command, shell=shell, cwd=cwd,
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                 env=environment)
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, env=environment)
 
             out, err = p.communicate()
             ret = p.returncode
@@ -85,30 +86,37 @@ def safe_write(filename, contents):
 
 CUSTOM_SLUG_RE = re.compile(r'[^-._\w]+$')
 
+
 def _custom_slugify(data):
     return CUSTOM_SLUG_RE.sub('', data)
+
 
 def slugify_uniquely(model, initial, field, max_length, **filters):
     slug = _custom_slugify(initial)[:max_length]
     current = slug
-    """
     base_qs = model.objects.filter(**filters)
+    index = 0
     while base_qs.filter(**{field: current}).exists():
         suffix = '-%s' % index
-        current = '%s%s'  % (slug[:-len(suffix)], suffix)
+        current = '%s%s'  % (slug, suffix)
         index += 1
-    """
     return current
+
 
 def mkversion(version_obj):
     try:
         if hasattr(version_obj, 'slug'):
-            ver =  NormalizedVersion(suggest_normalized_version(version_obj.slug))
+            ver = NormalizedVersion(
+                suggest_normalized_version(version_obj.slug)
+            )
         else:
-            ver =  NormalizedVersion(suggest_normalized_version(version_obj['slug']))
+            ver = NormalizedVersion(
+                suggest_normalized_version(version_obj['slug'])
+            )
         return ver
     except TypeError:
         return None
+
 
 def highest_version(version_list):
     highest = [None, None]
@@ -117,12 +125,14 @@ def highest_version(version_list):
         if not ver:
             continue
         elif highest[1] and ver:
-            #If there's a highest, and no version, we don't need to set anything
+            # If there's a highest, and no version, we don't need to set
+            # anything
             if ver > highest[1]:
                 highest = [version, ver]
         else:
             highest = [version, ver]
     return highest
+
 
 def purge_version(version, mainsite=False, subdomain=False, cname=False):
     varnish_servers = getattr(settings, 'VARNISH_SERVERS', None)
@@ -136,20 +146,21 @@ def purge_version(version, mainsite=False, subdomain=False, cname=False):
                 url = "/en/%s/*" % version.slug
                 to_purge = "http://%s%s" % (server, url)
                 log.info("Purging %s on %s" % (url, host))
-                ret = h.request(to_purge, method="PURGE", headers=headers)
+                h.request(to_purge, method="PURGE", headers=headers)
             if mainsite:
                 headers = {'Host': "readthedocs.org"}
                 url = "/docs/%s/en/%s/*" % (version.project.slug, version.slug)
                 to_purge = "http://%s%s" % (server, url)
                 log.info("Purging %s on readthedocs.org" % url)
-                ret = h.request(to_purge, method="PURGE", headers=headers)
+                h.request(to_purge, method="PURGE", headers=headers)
                 root_url = "/docs/%s/" % version.project.slug
                 to_purge = "http://%s%s" % (server, root_url)
                 log.info("Purging %s on readthedocs.org" % root_url)
-                ret2 = h.request(to_purge, method="PURGE", headers=headers)
+                h.request(to_purge, method="PURGE", headers=headers)
             if cname:
                 redis_conn = redis.Redis(**settings.REDIS)
-                for cnamed in redis_conn.smembers('rtd_slug:v1:%s' % version.project.slug):
+                for cnamed in redis_conn.smembers('rtd_slug:v1:%s'
+                                                  % version.project.slug):
                     headers = {'Host': cnamed}
                     url = "/en/%s/*" % version.slug
                     to_purge = "http://%s%s" % (server, url)
@@ -160,24 +171,35 @@ def purge_version(version, mainsite=False, subdomain=False, cname=False):
                     log.info("Purging %s on %s" % (root_url, cnamed))
                     h.request(to_purge, method="PURGE", headers=headers)
 
+
 class DictObj(object):
     def __getattr__(self, attr):
         return self.__dict__.get(attr)
 
+# Prevent saving the temporary Project instance
+def _new_save(*args, **kwargs):
+    log.warning("Called save on a non-real object.")
+    return 0
 
 def make_api_version(version_data):
     from builds.models import Version
-    del version_data['resource_uri']
+    for key in ['resource_uri', 'absolute_url']:
+        if key in version_data:
+            del version_data[key]
     project_data = version_data['project']
     project = make_api_project(project_data)
     version_data['project'] = project
     ver = Version(**version_data)
+    ver.save = _new_save
+
     return ver
+
 
 def make_api_project(project_data):
     from projects.models import Project
-    for key in ['users', 'resource_uri', 'absolute_url', 'downloads']:
-        if project_data.has_key(key):
+    for key in ['users', 'resource_uri', 'absolute_url', 'downloads', 'main_language_project', 'related_projects']:
+        if key in project_data:
             del project_data[key]
     project = Project(**project_data)
+    project.save = _new_save
     return project

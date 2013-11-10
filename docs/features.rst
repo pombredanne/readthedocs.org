@@ -6,7 +6,7 @@ This will serve as a list of all of the features that Read the Docs currently ha
 Github Integration
 ------------------
 
-We now support linking to GitHub by default in the sidebar. It links to the page on GitHub, and directly links to the edit view as well. This should help people quickly update typos and send pull requests to contribute to project documentation.
+We now support linking to GitHub by default in the sidebar. It links to the page on GitHub, and directly links to the edit view as well. This should help people quickly update typos and send pull requests to contribute to project documentation. Note that users must be logged in to GitHub in order to directly jump into the edit view via the "Edit on GitHub" link, otherwise they'll be presented with an unfortunate 404 page. The user does not, however, need to be logged on to use the "Show in GitHub" link. 
 
 If you want to integrate this into your own theme, the following variables are available in your custom templates:
 
@@ -35,7 +35,7 @@ Screenshot
 Auto-updating
 -------------
 
-The :doc:`webhooks` page talks about the different way you can ping RTD to let us know your project has been updated. We have official support for Github, and anywhere else we have a generic post-commit hook that allows you to POST to a URL to get your documentation built.
+The :doc:`webhooks` page talks about the different ways you can ping RTD to let us know your project has been updated. We have official support for Github, and anywhere else we have a generic post-commit hook that allows you to POST to a URL to get your documentation built.
 
 Heavily Cached
 --------------
@@ -59,7 +59,7 @@ Version Control Support Matrix
 +------------+------------+-----------+------------+-----------+
 | Tags       |    Yes     |    Yes    |   No       |    No     |
 +------------+------------+-----------+------------+-----------+
-| Branches   |    Yes     |    No     |   Yes      |    No     |
+| Branches   |    Yes     |    Yes    |   Yes      |    No     |
 +------------+------------+-----------+------------+-----------+
 | Default    |    master  |   default |            |    trunk  |
 +------------+------------+-----------+------------+-----------+
@@ -68,7 +68,7 @@ Version Control Support Matrix
 PDF Generation
 --------------
 
-When you build your project on RTD, we automatically build a PDF of your projects documentation. We also build them for every version that you upload, so we can host the PDFs of your latest documentation, as well as your latest stable releases as well.
+When you build your project on RTD, we automatically build a PDF of your project's documentation. We also build them for every version that you upload, so we can host the PDFs of your latest documentation, as well as your latest stable releases as well.
 
 Search
 ------
@@ -78,7 +78,7 @@ We provide full-text search across all of the pages of documentation hosted on o
 Alternate Domains
 -----------------
 
-We provide support for CNAMEs, Subdomains, and a shorturl for your project as well. This is outlined in the :doc:`alternate_domains` section.
+We provide support for CNAMEs, subdomains, and a shorturl for your project as well. This is outlined in the :doc:`alternate_domains` section.
 
 Intersphinx Support
 -------------------

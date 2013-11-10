@@ -4,17 +4,11 @@ Frequently Asked Questions
 My project isn't building with autodoc
 --------------------------------------
 
-First, you should check out the Builds tab of your project. That records all of the build attempts that RTD has made to build your project. If you see modules missing, you should enable the virtualenv feature, which will install your project into a virtualenv. If you are still seeing missing dependencies, you can install them with a pip requirements file in your project settings.
+First, you should check out the Builds tab of your project. That records all of the build attempts that RTD has made to build your project. If you see ``ImportError`` messages for custom Python modules, you should enable the virtualenv feature in the Admin page of your project, which will install your project into a virtualenv, and allow you to specify a ``requirements.txt`` file for your project.
 
 If you are still seeing errors because of C library dependencies, please see the below section about that.
 
-Do I need to be whitelisted?
-----------------------------
-
-No. Whitelisting has been removed as a concept in Read the Docs. You should have access to all of the features already.
-
-
-How do I change behavior for Read the Docs
+How do I change behavior for Read the Docs?
 -------------------------------------------
 
 When RTD builds your project, it sets the `READTHEDOCS` environment variable to the string `True`. So within your Sphinx's conf.py file, you can vary the behavior based on this. For example::
@@ -68,6 +62,43 @@ You can mock out the imports for these modules in your conf.py with the followin
 
 Of course, replacing `MOCK_MODULES` with the modules that you want to mock out.
 
+Can I make search engines only see one version of my docs?
+----------------------------------------------------------
+
+You can do this for Google at least with a canonical link tag.
+It looks something along the lines of:
+
+.. code-block:: html
+
+    <link rel="canonical" href="http://$YOURSLUG.readthedocs.org/en/latest/
+    {%- for word in pagename.split('/') -%}
+        {%- if word != 'index' -%}
+            {%- if word != '' -%}
+                {{ word }}/
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+    ">
+
+How do I host multiple projects on one CNAME?
+---------------------------------------------
+
+We support the concept of Subprojects.
+If you add a subproject to a project,
+that documentation will also be served under the parent project's subdomain.
+
+For example,
+Kombu is a subproject of celery,
+so you can access it on the `celery.readthedocs.org` domain:
+
+http://celery.readthedocs.org/projects/kombu/en/latest/
+
+This also works the same for CNAME's:
+
+http://docs.celeryproject.org/projects/kombu/en/latest/
+
+You can add subprojects in the Admin section for your project.
+
 Where do I need to put my docs for RTD to find it?
 --------------------------------------------------
 
@@ -76,8 +107,13 @@ Read the Docs will crawl your project looking for a ``conf.py``. Where it finds 
 I want to use the Blue/Default Sphinx theme
 -------------------------------------------
 
-We think that our theme is badass, and better than the default for many reasons. Some people don't like change though :), so there is a hack that will let you keep using the default theme. If you set the ``html_style`` variable in your ``conf.py``, it should default to using the default theme. The value of this doesn't matter, and can be set to None, ``'static/``.
+We think that our theme is badass, and better than the default for many reasons. Some people don't like change though :), so there is a hack that will let you keep using the default theme. If you set the ``html_style`` variable in your ``conf.py``, it should default to using the default theme. The value of this doesn't matter, and can be set to ``/default.css`` for default behavior.
 
+I want to use the Read the Docs theme locally
+---------------------------------------------
+
+There is a repository for that: https://github.com/snide/sphinx_rtd_theme.
+Simply follow the instructions in the README.
 
 Image scaling doesn't work in my documentation
 -----------------------------------------------
@@ -98,3 +134,28 @@ This is something that has been long planned. In fact, we have a language string
 
  * http://ja.python-requests.org/en/latest/index.html
  * http://docs.python-requests.org/en/latest/index.html
+
+Do I need to be whitelisted?
+----------------------------
+
+No. Whitelisting has been removed as a concept in Read the Docs. You should have access to all of the features already.
+
+Does Read The Docs work well with "legible" docstrings?
+--------------------------------------------------
+
+Yes. One criticism of Sphinx is that its annotated docstrings are too
+dense and difficult for humans to read. In response, many projects
+have adopted customized docstring styles that are simultaneously
+informative and legible. The
+`NumPy <https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt>`_
+and
+`Google <http://google-styleguide.googlecode.com/svn/trunk/pyguide.html?showone=Comments#Comments>`_
+styles are two popular docstring formats.  Fortunately, the default
+Read The Docs theme handles both formats just fine, provided
+your ``conf.py`` specifies an appropriate Sphinx extension that
+knows how to convert your customized docstrings.  Two such extensions
+are `numpydoc <https://github.com/numpy/numpydoc>`_ and
+`napoleon <http://sphinxcontrib-napoleon.readthedocs.org>`_. Only
+``napoleon`` is able to handle both docstring formats. Its default
+output more closely matches the format of standard Sphinx annotations,
+and as a result, it tends to look a bit better with the default theme.

@@ -7,7 +7,7 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.safestring import mark_safe
 
 from projects import constants
-from projects.models import Project
+from projects.models import Project, EmailHook
 from projects.tasks import update_docs
 
 
@@ -19,42 +19,64 @@ class ProjectForm(forms.ModelForm):
         if not self.instance.pk:
             potential_slug = slugify(name)
             if Project.objects.filter(slug=potential_slug).count():
-                raise forms.ValidationError(_('A project with that name exists already!'))
+                raise forms.ValidationError(
+                    _('A project with that name exists already!')
+                )
 
         return name
 
 
 class ImportProjectForm(ProjectForm):
     repo = forms.CharField(required=True,
-            help_text=_(u'URL for your code (hg or git). Ex. http://github.com/ericholscher/django-kong.git'))
+                           help_text=_(u'URL for your code (hg or git). Ex. '
+                                       u'http://github.com/ericholscher/django'
+                                       u'-kong.git'))
+    #VERSION_CHOICES = [['', 'disabled']] + [(x, x) for x in range(10)]
+    #num_major = forms.ChoiceField(choices=VERSION_CHOICES)
+    #num_minor = forms.ChoiceField(choices=VERSION_CHOICES)
+    #num_point = forms.ChoiceField(choices=VERSION_CHOICES)
+
+    python_interpreter = forms.ChoiceField(
+        choices=constants.PYTHON_CHOICES, initial='python',
+        help_text=_("(Beta) The Python interpreter used to create the virtual "
+                    "environment."))
 
     class Meta:
         model = Project
         fields = (
             # Important
-            'name', 'repo', 'repo_type', 'description',
+            'name', 'repo', 'repo_type', 'description', 'language',
             # Not as important
-            'project_url', 'tags', 'default_branch', 'default_version', 'conf_py_file',
+            'project_url', 'tags', 'default_branch', 'default_version',
+            'conf_py_file',
+            # Version Support
+            #'num_major', 'num_minor', 'num_point',
             # Privacy
             'privacy_level', 'version_privacy_level',
             # Python specific
             'use_virtualenv', 'use_system_packages', 'requirements_file',
+            'python_interpreter',
             # Fringe
             'analytics_code', 'documentation_type', 'tags'
         )
 
     def clean_repo(self):
         repo = self.cleaned_data.get('repo', '').strip()
+        pvt_repos = getattr(settings, 'ALLOW_PRIVATE_REPOS', False)
         if '&&' in repo or '|' in repo:
             raise forms.ValidationError(_(u'Invalid character in repo name'))
-        elif '@' in repo and not getattr(settings, 'ALLOW_PRIVATE_REPOS', False):
-            raise forms.ValidationError(_(u'It looks like you entered a private repo - please use the public (http:// or git://) clone url'))
+        elif '@' in repo and not pvt_repos:
+            raise forms.ValidationError(
+                _(u'It looks like you entered a private repo - please use the '
+                  u'public (http:// or git://) clone url'))
         return repo
 
     def clean_conf_py_file(self):
         file = self.cleaned_data.get('conf_py_file', '').strip()
         if file and not 'conf.py' in file:
-            raise forms.ValidationError(_('Your configuration file is invalid, make sure it contains conf.py in it.'))
+            raise forms.ValidationError(
+                _('Your configuration file is invalid, make sure it contains '
+                  'conf.py in it.'))
         return file
 
     def save(self, *args, **kwargs):
@@ -99,14 +121,19 @@ class BaseVersionsForm(forms.Form):
 
     def save_version(self, version):
         new_value = self.cleaned_data.get('version-%s' % version.slug, None)
-        privacy_level = self.cleaned_data.get('privacy-%s' % version.slug, None)
-        if (new_value is None or new_value == version.active) and (privacy_level is None or privacy_level == version.privacy_level):
+        privacy_level = self.cleaned_data.get('privacy-%s' % version.slug,
+                                              None)
+        if ((new_value is None or
+             new_value == version.active)
+            and (privacy_level is None or
+                 privacy_level == version.privacy_level)):
             return
         version.active = new_value
         version.privacy_level = privacy_level
         version.save()
         if version.active and not version.built and not version.uploaded:
-            update_docs.delay(self.project.pk, record=True, version_pk=version.pk)
+            update_docs.delay(self.project.pk, record=True,
+                              version_pk=version.pk)
 
 
 def build_versions_form(project):
@@ -142,7 +169,8 @@ def build_versions_form(project):
 
 class BaseUploadHTMLForm(forms.Form):
     content = forms.FileField(label=_("Zip file of HTML"))
-    overwrite = forms.BooleanField(required=False, label=_("Overwrite existing HTML?"))
+    overwrite = forms.BooleanField(required=False,
+                                   label=_("Overwrite existing HTML?"))
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -188,13 +216,15 @@ class SubprojectForm(forms.Form):
         subproject_name = self.cleaned_data['subproject']
         subproject_qs = Project.objects.filter(name=subproject_name)
         if not subproject_qs.exists():
-            raise forms.ValidationError(_("Project %(name)s does not exist") % {'name': subproject_name})
+            raise forms.ValidationError((_("Project %(name)s does not exist")
+                                         % {'name': subproject_name}))
         self.subproject = subproject_qs[0]
         return subproject_name
 
     def save(self):
         relationship = self.parent.add_subproject(self.subproject)
         return relationship
+
 
 class UserForm(forms.Form):
     user = forms.CharField()
@@ -213,5 +243,43 @@ class UserForm(forms.Form):
         return name
 
     def save(self):
-        project = self.project.users.add(self.user)
+        self.project.users.add(self.user)
         return self.user
+
+
+class EmailHookForm(forms.Form):
+    email = forms.EmailField()
+
+    def __init__(self, *args, **kwargs):
+        self.project = kwargs.pop('project', None)
+        super(EmailHookForm, self).__init__(*args, **kwargs)
+
+    def clean_email(self):
+        self.email = EmailHook.objects.get_or_create(
+            email=self.cleaned_data['email'], project=self.project)[0]
+        return self.email
+
+    def save(self):
+        self.project.emailhook_notifications.add(self.email)
+        return self.project
+
+
+class TranslationForm(forms.Form):
+    project = forms.CharField()
+
+    def __init__(self, *args, **kwargs):
+        self.parent = kwargs.pop('parent', None)
+        super(TranslationForm, self).__init__(*args, **kwargs)
+
+    def clean_project(self):
+        subproject_name = self.cleaned_data['project']
+        subproject_qs = Project.objects.filter(name=subproject_name)
+        if not subproject_qs.exists():
+            raise forms.ValidationError((_("Project %(name)s does not exist")
+                                         % {'name': subproject_name}))
+        self.subproject = subproject_qs[0]
+        return subproject_name
+
+    def save(self):
+        project = self.parent.translations.add(self.subproject)
+        return project

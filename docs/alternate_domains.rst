@@ -1,7 +1,7 @@
 Alternate Domains
 =================
 
-Read the Docs supports a number of custom domains for your convinence. Shorter urls make everyone happy, and we like making people happy!
+Read the Docs supports a number of custom domains for your convenience. Shorter urls make everyone happy, and we like making people happy!
 
 Subdomain Support
 ------------------
@@ -24,4 +24,4 @@ As an example, fabric's dig record looks like this::
 RTFD.org
 ---------
 
-You can also use <slug>.rtfd.org as a short URL for the front page of your subdomain'd site. For example, http://pip.rtfd.org redirects to it's documentation page. We're looking for more fun ways to use this domain, so feel free to suggestion an idea.
+You can also use <slug>.rtfd.org as a short URL for the front page of your subdomain'd site. For example, http://pip.rtfd.org redirects to it's documentation page. We're looking for more fun ways to use this domain, so feel free to suggest an idea.

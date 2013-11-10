@@ -76,14 +76,20 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'pagination.middleware.PaginationMiddleware',
+    # Hack
+    # 'core.underscore_middleware.UnderscoreMiddleware',
     'core.middleware.SubdomainMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     #'django.contrib.flatpages.middleware.FlatpageFallbackMiddleware',
 )
 
+CORS_ORIGIN_REGEX_WHITELIST = ('^http://(.+)\.readthedocs\.org$', '^https://(.+)\.readthedocs\.org$')
+# So people can post to their accounts
+CORS_ALLOW_CREDENTIALS = True
 ROOT_URLCONF = 'urls'
 
 TEMPLATE_DIRS = (
-    '%s/readthedocs/templates/' % (SITE_ROOT),
+    '%s/readthedocs/templates/' % SITE_ROOT,
 )
 
 TEMPLATE_CONTEXT_PROCESSORS = (
@@ -113,6 +119,10 @@ INSTALLED_APPS = [
     'basic.flagging',
     'djangosecure',
     'guardian',
+    'django_gravatar',
+    'django_nose',
+    'rest_framework',
+    'corsheaders',
 
     # Celery bits
     'djcelery',
@@ -127,21 +137,30 @@ INSTALLED_APPS = [
     'builds',
     'core',
     'rtd_tests',
+    'websupport',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAdminUser',),
+    'PAGINATE_BY': 10
+}
 
 if DEBUG:
     INSTALLED_APPS.append('django_extensions')
 
-
 #CARROT_BACKEND = "ghettoq.taproot.Database"
 CELERY_ALWAYS_EAGER = True
-CELERYD_TASK_TIME_LIMIT = 60*60 #60 minutes
+CELERYD_TASK_TIME_LIMIT = 60*60  # 60 minutes
 CELERY_SEND_TASK_ERROR_EMAILS = True
+CELERYD_HIJACK_ROOT_LOGGER = False
 
 CELERY_ROUTES = {
-        'celery_haystack.tasks.CeleryHaystackSignalHandler': {
-            'queue': 'celery_haystack',
-        },
+    'celery_haystack.tasks.CeleryHaystackSignalHandler': {
+        'queue': 'celery_haystack',
+    },
+    'projects.tasks.fileify': {
+        'queue': 'celery_haystack',
+    },
 }
 
 
@@ -154,6 +173,10 @@ HAYSTACK_CONNECTIONS = {
     },
 }
 
+# Elasticsearch settings.
+ES_HOSTS = ['127.0.0.1:9200']
+ES_DEFAULT_NUM_REPLICAS = 0
+ES_DEFAULT_NUM_SHARDS = 5
 
 AUTH_PROFILE_MODULE = "core.UserProfile"
 SOUTH_TESTS_MIGRATE = False
@@ -167,8 +190,10 @@ INTERNAL_IPS = ('127.0.0.1',)
 IMPORT_EXTERNAL_DATA = True
 
 backup_count = 1000
+maxBytes = 500 * 100 * 100
 if DEBUG:
     backup_count = 2
+    maxBytes = 500 * 100 * 10
 
 # Guardian Settings
 GUARDIAN_RAISE_403 = True
@@ -178,41 +203,59 @@ ANONYMOUS_USER_ID = -1
 REPO_LOCK_SECONDS = 30
 ALLOW_PRIVATE_REPOS = False
 
+LOG_FORMAT = "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s"
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': True,
     'formatters': {
         'standard': {
-            'format' : "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s",
-            'datefmt' : "%d/%b/%Y %H:%M:%S"
+            'format': LOG_FORMAT,
+            'datefmt': "%d/%b/%Y %H:%M:%S"
         },
     },
     'handlers': {
         'null': {
-            'level':'DEBUG',
-            'class':'django.utils.log.NullHandler',
+            'level': 'DEBUG',
+            'class': 'django.utils.log.NullHandler',
         },
-        'logfile': {
-            'level':'DEBUG',
-            'class':'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(LOGS_ROOT, "rtd.log"),
-            'maxBytes': 50000,
+        'exceptionlog': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_ROOT, "exceptions.log"),
+            'maxBytes': maxBytes,
             'backupCount': backup_count,
             'formatter': 'standard',
         },
         'errorlog': {
-            'level':'DEBUG',
-            'class':'logging.handlers.RotatingFileHandler',
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(LOGS_ROOT, "rtd.log"),
-            'maxBytes': 50000,
+            'maxBytes': maxBytes,
+            'backupCount': backup_count,
+            'formatter': 'standard',
+        },
+        'postcommit': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_ROOT, "postcommit.log"),
+            'maxBytes': maxBytes,
+            'backupCount': backup_count,
+            'formatter': 'standard',
+        },
+        'restapi': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOGS_ROOT, "api.log"),
+            'maxBytes': maxBytes,
             'backupCount': backup_count,
             'formatter': 'standard',
         },
         'db': {
-            'level':'DEBUG',
-            'class':'logging.handlers.RotatingFileHandler',
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(LOGS_ROOT, "db.log"),
-            'maxBytes': 50000,
+            'maxBytes': maxBytes,
             'backupCount': backup_count,
             'formatter': 'standard',
         },
@@ -220,32 +263,49 @@ LOGGING = {
             'level': 'ERROR',
             'class': 'django.utils.log.AdminEmailHandler',
         },
-        'console':{
-            'level':'DEBUG',
-            'class':'logging.StreamHandler',
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
             'formatter': 'standard'
         },
     },
     'loggers': {
         'django': {
-            'handlers':['console', 'errorlog'],
+            'handlers': ['console', 'errorlog'],
             'propagate': True,
-            'level':'WARN',
+            'level': 'WARN',
         },
         'django.db.backends': {
             'handlers': ['db'],
             'level': 'DEBUG',
             'propagate': False,
         },
+        'core.views.post_commit': {
+            'handlers': ['postcommit'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'restapi': {
+            'handlers': ['restapi'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
         'django.request': {
-            'handlers': ['mail_admins'],
+            'handlers': ['mail_admins', 'exceptionlog'],
             'level': 'ERROR',
             'propagate': False,
         },
-        #Default handler for everything that we're doing. Hopefully this doesn't double-print
-        #the Django things as well. Not 100% sure how logging works :)
+        # Uncomment if you want to see Elasticsearch queries in the console.
+        #'elasticsearch.trace': {
+        #    'level': 'DEBUG',
+        #    'handlers': ['console'],
+        #},
+
+        # Default handler for everything that we're doing. Hopefully this
+        # doesn't double-print the Django things as well. Not 100% sure how
+        # logging works :)
         '': {
-            'handlers': ['console', 'logfile'],
+            'handlers': ['console', 'errorlog'],
             'level': 'DEBUG',
         },
     }

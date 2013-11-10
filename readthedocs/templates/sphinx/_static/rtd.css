@@ -130,7 +130,12 @@ a {
 #indices-and-tables a {
     color: #444;
     text-decoration: none;
-    border-bottom: none;
+    /* border-bottom: none; */
+}
+
+/* Search box size */
+div.sphinxsidebar #searchbox input[type="submit"] {
+    width: 50px;
 }
 
 /* Most links get an underline-effect when hovered */
@@ -565,6 +570,15 @@ dl {
     margin: 1em 0 2.5em 0;
 }
 
+dl dt {
+    font-style: italic;
+}
+
+dl dd {
+    color: rgb(68, 68, 68);
+    font-size: 0.95em;
+}
+
 /* Highlight target when you click an internal link */
 dt:target {
     background: #ffe080;
@@ -598,6 +612,10 @@ p {
 
 .section p img {
     margin: 1em 2em;
+}
+
+table.docutils td, table.docutils th {
+    padding: 1px 8px 1px 5px;
 }
 
 
@@ -793,3 +811,5 @@ p {
     }
 
 }
+
+

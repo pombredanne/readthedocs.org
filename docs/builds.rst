@@ -19,7 +19,7 @@ When RTD builds your project, it sets the ``READTHEDOCS`` environment variable t
 Deleting a stale or broken build environment
 --------------------------------------------
 
-RTD doesn't expose this in the UI, but it is possible to remove the build directory of your project. If you want to remove a build environment for your project, hit http://readthedocs.org/wipe/<project_slug>/<version_slug>/ with a POST. You must be logged in to do this.
+RTD doesn't expose this in the UI, but it is possible to remove the build directory of your project. If you want to remove a build environment for your project, hit http://readthedocs.org/wipe/<project_slug>/<version_slug>/. You must be logged in to do this.
 
 Packages installed in the build environment
 -------------------------------------------
@@ -46,14 +46,14 @@ Then we build the proper backend code for the type of documentation you've selec
 
 When we build your documentation, we run `sphinx-build -b html . _build/html`, where `html` would be replaced with the correct backend. We also create man pages and pdf's automatically based on your project.
 
-Then these files are rsync'd across to our application servers from the build server. Once on the application servers, they are served from nginx and then cached in Varnish for a week. This varnish cache is pro-actively purged whenever a new version of your docs are built.
+Then these files are rsync'd across to our application servers from the build server. Once on the application servers, they are served from nginx and then cached in Varnish for a week. This Varnish cache is pro-actively purged whenever a new version of your docs are built.
 
 An example in code::
 
     update_imported_docs(project, version)
     (ret, out, err) = build_docs(project=project, version=version,
-                                         pdf=pdf, man=man, epub=epub,
-                                         record=record, force=force)
+                                 pdf=pdf, man=man, epub=epub, dash=dash,
+                                 record=record, force=force)
     #This follows the builder workflow layed out below.
     purge_version(version, subdomain=True,
                     mainsite=True, cname=True)
@@ -61,7 +61,7 @@ An example in code::
 Writing your own builder
 ------------------------
 
-The documentation build system in RTD is made plugable, so that you can build out your own backend. If you have a documentation format that isn't currently supported, you can add support by contributing a backend.
+The documentation build system in RTD is made pluggable, so that you can build out your own backend. If you have a documentation format that isn't currently supported, you can add support by contributing a backend.
 
 The :doc:`api/doc_builder` API explains the higher level parts of the API that you need to implement. A basic run goes something like this::
 

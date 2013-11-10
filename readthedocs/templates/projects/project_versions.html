@@ -1,40 +1,48 @@
-{% extends "projects/base_project.html" %}
+{% extends "projects/project_edit_base.html" %}
 {% load i18n %}
 
 {% block title %}{% trans "Edit Project Versions" %}{% endblock %}
 
+{% block project-versions-active %}active{% endblock %}
 {% block editing-option-edit-proj %}class="active"{% endblock %}
 
-{% block content-header %}<h1>{% trans "Edit Project Versions" %}</h1>{% endblock %}
+{% block project_edit_content_header %}{{ project.name }} <small class="quiet">{% trans "Versions" %}</small>{% endblock %}
 
-
-{% block project_editing %}
-    {% with versions_active="active" %}
-        {% include "core/project_bar.html" %}
-    {% endwith %}
-{% endblock %}
-
-{% block content %}
-  <p class="help_text">
-    {% trans "If you are having trouble building older versions of your Documentation, then you can" %} <a href="{% url projects_upload_html project.slug %}">{% trans "Upload a Zip file of HTML" %}</a> {% trans "instead. This is to support versions that may not build anymore with current Sphinx, or to support plugins and extensions that we may not have on our server." %}
-  </p>
-
-  <p>
-    {% trans "Choose which versions you would like to publish besides the latest revision." %}
-  </p>
+{% block project_edit_content %}
   <form method="post" action=".">{% csrf_token %}
 
 {% for field in form %}
+
     {% if forloop.first  %}
-        {# For choosing the default version #}
-        <h5> {{ field.label }} </h5>
+        {# This is a custom form listing the possible active versions, to make 1 the default #}
+        <h2> {{ field.label }} </h2>
         {{ field }}
+    <p>
+      {% trans "Choose the version that / will redirect to." %}
+    </p>
+
     {% else %}
-        {% if field.label != "privacy" %}
-        <h3> {{ field.label}} </h3>
+
+        {% if forloop.counter0 == 1 %}
+            <h2> {% trans "Choose Active Versions" %} </h2>
+            <p>
+            {% trans "Active versions below will show up on the site." %}
+            </p>
+        {% endif %}
+
+
+        {% if field.label == "privacy" %}
           {{ field }}
+
+        {% comment %}
+        {% elif field.label == "tags" %}
+            {% trans "Tags" %}: {{ field }}
+        {% endcomment %}
+
         {% else %}
-          {{ field }}
+        {# This is a custom field with a label of the version, and a value of a checkbox denoting if it is active #}
+        <h3>{{ field.label}}</h3>
+          {% trans "Active" %} {{ field }}
         {% endif %}
     {% endif %}
     <br>

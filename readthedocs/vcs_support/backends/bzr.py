@@ -1,4 +1,5 @@
 import csv
+import re
 from StringIO import StringIO
 
 from projects.exceptions import ProjectImportError
@@ -21,12 +22,14 @@ class Backend(BaseVCS):
         retcode = self.run('bzr', 'revert')[0]
         if retcode != 0:
             raise ProjectImportError(
-                "Failed to get code from '%s' (bzr revert): %s" % (self.repo_url, retcode)
+                ("Failed to get code from '%s' (bzr revert): %s"
+                 % (self.repo_url, retcode))
             )
         up_output = self.run('bzr', 'up')
         if up_output[0] != 0:
             raise ProjectImportError(
-                "Failed to get code from '%s' (bzr up): %s" % (self.repo_url, retcode)
+                ("Failed to get code from '%s' (bzr up): %s"
+                 % (self.repo_url, retcode))
             )
         return up_output
 
@@ -34,7 +37,8 @@ class Backend(BaseVCS):
         retcode = self.run('bzr', 'checkout', self.repo_url, '.')[0]
         if retcode != 0:
             raise ProjectImportError(
-                "Failed to get code from '%s' (bzr checkout): %s" % (self.repo_url, retcode)
+                ("Failed to get code from '%s' (bzr checkout): %s"
+                 % (self.repo_url, retcode))
             )
 
     @property
@@ -55,7 +59,8 @@ class Backend(BaseVCS):
             0.2.0-pre-alpha      177
         """
         # parse the lines into a list of tuples (commit-hash, tag ref name)
-        raw_tags = csv.reader(StringIO(data), delimiter=' ')
+        squashed_data = re.sub(r' +', ' ', data)
+        raw_tags = csv.reader(StringIO(squashed_data), delimiter=' ')
         vcs_tags = []
         for name, commit in raw_tags:
             vcs_tags.append(VCSVersion(self, commit, name))

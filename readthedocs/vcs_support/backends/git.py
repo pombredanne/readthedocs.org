@@ -11,11 +11,12 @@ from vcs_support.base import BaseVCS, VCSVersion
 
 log = logging.getLogger(__name__)
 
+
 class Backend(BaseVCS):
     supports_tags = True
     supports_branches = True
     contribution_backends = [GithubContributionBackend]
-    fallback_branch = 'master' # default branch
+    fallback_branch = 'master'  # default branch
 
     def check_working_dir(self):
         if exists(self.working_dir):
@@ -38,7 +39,7 @@ class Backend(BaseVCS):
         return self.reset()
 
     def pull(self):
-        code, out, err = self.run('git', 'fetch')
+        code, out, err = self.run('git', 'fetch', '--prune')
         code, out, err = self.run('git',  'fetch', '-t')
         if code != 0:
             raise ProjectImportError(
@@ -102,7 +103,8 @@ class Backend(BaseVCS):
 
     @property
     def branches(self):
-        retcode, stdout, err = self.run('git', 'branch', '-a')
+        # Only show remote branches
+        retcode, stdout, err = self.run('git', 'branch', '-r')
         # error (or no tags found)
         if retcode != 0:
             return []
@@ -110,31 +112,31 @@ class Backend(BaseVCS):
 
     def parse_branches(self, data):
         """
-        Parse output of git branch -a, eg:
-              develop
-              master
-            * release/2.0.0
-              rtd-jonas
-              remotes/origin/2.0.X
-              remotes/origin/HEAD -> origin/master
-              remotes/origin/develop
-              remotes/origin/master
-              remotes/origin/release/2.0.0
-              remotes/origin/release/2.1.0
+        Parse output of git branch -r, eg:
+              origin/2.0.X
+              origin/HEAD -> origin/master
+              origin/develop
+              origin/master
+              origin/release/2.0.0
+              origin/release/2.1.0
         """
         clean_branches = []
         raw_branches = csv.reader(StringIO(data), delimiter=' ')
         for branch in raw_branches:
             branch = filter(lambda f: f != '' and f != '*', branch)
-            branch = branch[0]
-            if branch.startswith('remotes/origin/'):
-                slug = branch[15:].replace('/', '-')
-                if slug in ['HEAD', self.fallback_branch]:
-                    continue
-                clean_branches.append(VCSVersion(self, branch, slug))
-            else:
-                slug = branch.replace('/', '-')
-                clean_branches.append(VCSVersion(self, branch, slug))
+            # Handle empty branches
+            if len(branch):
+                branch = branch[0]
+                if branch.startswith('origin/'):
+                    cut_len = len('origin/')
+                    slug = branch[cut_len:].replace('/', '-')
+                    if slug in ['HEAD', self.fallback_branch]:
+                        continue
+                    clean_branches.append(VCSVersion(self, branch, slug))
+                else:
+                    # Believe this is dead code.
+                    slug = branch.replace('/', '-')
+                    clean_branches.append(VCSVersion(self, branch, slug))
         return clean_branches
 
     def checkout(self, identifier=None):

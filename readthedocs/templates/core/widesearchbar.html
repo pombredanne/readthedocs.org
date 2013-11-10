@@ -12,13 +12,14 @@
                 <input type="text" name="q" value="{{ term }}" id="id_site_search">
               </div>
               <div class="submit-input-wrapper">
-                {% comment %}Translators: This is about starting a search{% endcomment %}
+                {% comment %} Translators: This is about starting a search {% endcomment %}
                 <input type="submit" value="{% trans "Let's do this." %}">
               </div>
             </form>
 
           </div>
         </div>
+        {% comment %}
         <script type="text/javascript">
           $('.wide-search-bar #id_site_search').autocomplete({
             source: '{% url search_autocomplete %}',
@@ -29,4 +30,4 @@
             }
           });
         </script>
-        <!-- BEGIN wide search bar -->
+        {% endcomment %}
