@@ -3,6 +3,7 @@
 Internationalization
 ====================
 
+
 This document covers the details regarding internationalization and
 localization that are applied in Read the Docs. The guidelines described are
 mostly based on `Kitsune's localization documentation
@@ -12,6 +13,9 @@ As with most of the Django applications out there, Read the Docs' i18n/l10n
 framework is based on `GNU gettext <http://www.gnu.org/software/gettext/>`_.
 Crowd-sourced localization is optionally available at `Transifex
 <https://www.transifex.com/projects/p/readthedocs/>`_.
+
+For more information about the general ideas,
+look at this document: http://www.gnu.org/software/gettext/manual/html_node/Concepts.html
 
 
 Making Strings Localizable

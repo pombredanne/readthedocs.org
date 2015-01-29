@@ -1,13 +1,16 @@
 {% extends "base.html" %}
-
 {% load i18n %}
 
-{% block title %}{% trans "Server Error" %}{% endblock %}
+    {% block title %}
+      {% trans "Server Error" %}
+    {% endblock %}
 
-{% block content-header %}<h1>{% trans "Something's wrong" %}</h1>{% endblock %}
+    {% block header-wrapper %}
+      {% include "error_header.html" %}
+    {% endblock %}
 
 {% block content %}
-  <pre style="line-height: 1.25;">
+<pre style="line-height: 1.25; white-space: pre;">
           .
          ":"
        ___:____     |"\/"|
@@ -15,7 +18,7 @@
      |  O        \___/  |
    ~^~^~^~^~^~^~^~^~^~^~^~^~
 
-   {% trans "Fail.  Check back in a bit!" %}
+   Fail.  Check back in a bit!
 
   </pre>
 {% endblock %}

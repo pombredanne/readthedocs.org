@@ -2,9 +2,12 @@ import logging
 import json
 
 from django.test import TestCase
+from django.test.utils import override_settings
+from django.contrib.auth.models import User
 
 from builds.models import Version
 from projects.models import Project
+from projects.forms import UpdateProjectForm
 from projects import tasks
 
 log = logging.getLogger(__name__)
@@ -29,20 +32,28 @@ class PrivacyTests(TestCase):
         self.client.login(username='eric', password='test')
         log.info(("Making kong with privacy: %s and version privacy: %s"
                   % (privacy_level, version_privacy_level)))
-        r = self.client.post(
-            '/dashboard/import/',
-            {'repo_type': 'git', 'name': 'Django Kong', 'language': 'en',
-             'tags': 'big, fucking, monkey', 'default_branch': '',
-             'project_url': 'http://django-kong.rtfd.org',
-             'repo': 'https://github.com/ericholscher/django-kong',
-             'csrfmiddlewaretoken': '34af7c8a5ba84b84564403a280d9a9be',
-             'default_version': 'latest',
-             'python_interpreter': 'python',
-             'privacy_level': privacy_level,
-             'version_privacy_level': version_privacy_level,
-             'description': 'OOHHH AH AH AH KONG SMASH',
-             'documentation_type': 'sphinx'})
-        self.assertEqual(r.status_code, 302)
+        # Create project via project form, simulate import wizard without magic
+        form = UpdateProjectForm(
+            data={'repo_type': 'git',
+                  'repo': 'https://github.com/ericholscher/django-kong',
+                  'name': 'Django Kong',
+                  'language': 'en',
+                  'default_branch': '',
+                  'project_url': 'http://django-kong.rtfd.org',
+                  'default_version': 'latest',
+                  'python_interpreter': 'python',
+                  'description': 'OOHHH AH AH AH KONG SMASH',
+                  'documentation_type': 'sphinx'},
+            user=User.objects.get(username='eric'))
+        proj = form.save()
+        # Update these directly, no form has all the fields we need
+        proj.privacy_level = privacy_level
+        proj.version_privacy_level = version_privacy_level
+        proj.num_minor = 2
+        proj.num_major = 2
+        proj.num_point = 2
+        proj.save()
+
         self.assertAlmostEqual(Project.objects.count(), 1)
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
@@ -56,8 +67,6 @@ class PrivacyTests(TestCase):
         self._create_kong('private', 'private')
 
         self.client.login(username='eric', password='test')
-        r = self.client.get('/')
-        self.assertTrue('Django Kong' in r.content)
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
         r = self.client.get('/builds/django-kong/')
@@ -74,37 +83,6 @@ class PrivacyTests(TestCase):
         self.assertEqual(r.status_code, 404)
         r = self.client.get('/projects/django-kong/downloads/')
         self.assertEqual(r.status_code, 404)
-
-    def test_protected_repo(self):
-        """Check that protected projects don't show up in: builds, downloads,
-        detail, project list
-
-        """
-        self._create_kong('protected', 'protected')
-
-        self.client.login(username='eric', password='test')
-        r = self.client.get('/')
-        self.assertTrue('Django Kong' in r.content)
-        r = self.client.get('/projects/')
-        self.assertTrue('Django Kong' in r.content)
-        r = self.client.get('/projects/django-kong/')
-        self.assertEqual(r.status_code, 200)
-        r = self.client.get('/builds/django-kong/')
-        self.assertEqual(r.status_code, 200)
-        r = self.client.get('/projects/django-kong/downloads/')
-        self.assertEqual(r.status_code, 200)
-
-        self.client.login(username='tester', password='test')
-        r = self.client.get('/')
-        self.assertTrue('Django Kong' not in r.content)
-        r = self.client.get('/projects/')
-        self.assertTrue('Django Kong' not in r.content)
-        r = self.client.get('/projects/django-kong/')
-        self.assertEqual(r.status_code, 200)
-        r = self.client.get('/builds/django-kong/')
-        self.assertEqual(r.status_code, 200)
-        r = self.client.get('/projects/django-kong/downloads/')
-        self.assertEqual(r.status_code, 200)
 
     def test_public_repo(self):
         """Check that public projects show up in: builds, downloads, detail,
@@ -114,8 +92,6 @@ class PrivacyTests(TestCase):
         self._create_kong('public', 'public')
 
         self.client.login(username='eric', password='test')
-        r = self.client.get('/')
-        self.assertTrue('Django Kong' in r.content)
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
         r = self.client.get('/builds/django-kong/')
@@ -124,8 +100,6 @@ class PrivacyTests(TestCase):
         self.assertEqual(r.status_code, 200)
 
         self.client.login(username='tester', password='test')
-        r = self.client.get('/')
-        self.assertTrue('Django Kong' in r.content)
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
         r = self.client.get('/builds/django-kong/')
@@ -138,31 +112,9 @@ class PrivacyTests(TestCase):
 
         self.client.login(username='eric', password='test')
         Version.objects.create(project=kong, identifier='test id',
-                               verbose_name='test verbose', slug='test-slug')
-        r = self.client.post('/dashboard/django-kong/versions/',
-                             {'version-test-slug': 'on',
-                              'privacy-test-slug': 'private'})
-        self.assertEqual(Version.objects.count(), 1)
-        self.assertEqual(Version.objects.all()[0].privacy_level, 'private')
-        r = self.client.get('/projects/django-kong/')
-        self.assertTrue('test-slug' in r.content)
-
-        # Make sure it doesn't show up as tester
-        self.client.login(username='tester', password='test')
-        r = self.client.get('/projects/django-kong/')
-        self.assertTrue('test-slug' not in r.content)
-
-    def test_protected_branch(self):
-        kong = self._create_kong('public', 'protected')
-
-        self.client.login(username='eric', password='test')
-        Version.objects.create(project=kong, identifier='test id',
-                               verbose_name='test verbose', slug='test-slug')
-        r = self.client.post('/dashboard/django-kong/versions/',
-                             {'version-test-slug': 'on',
-                              'privacy-test-slug': 'protected'})
-        self.assertEqual(Version.objects.count(), 1)
-        self.assertEqual(Version.objects.all()[0].privacy_level, 'protected')
+                               verbose_name='test verbose', privacy_level='private', slug='test-slug', active=True)
+        self.assertEqual(Version.objects.count(), 2)
+        self.assertEqual(Version.objects.get(slug='test-slug').privacy_level, 'private')
         r = self.client.get('/projects/django-kong/')
         self.assertTrue('test-slug' in r.content)
 
@@ -176,11 +128,8 @@ class PrivacyTests(TestCase):
 
         self.client.login(username='eric', password='test')
         Version.objects.create(project=kong, identifier='test id',
-                               verbose_name='test verbose', slug='test-slug')
-        r = self.client.post('/dashboard/django-kong/versions/',
-                             {'version-test-slug': 'on',
-                              'privacy-test-slug': 'public'})
-        self.assertEqual(Version.objects.count(), 1)
+                               verbose_name='test verbose', slug='test-slug', active=True)
+        self.assertEqual(Version.objects.count(), 2)
         self.assertEqual(Version.objects.all()[0].privacy_level, 'public')
         r = self.client.get('/projects/django-kong/')
         self.assertTrue('test-slug' in r.content)
@@ -212,32 +161,6 @@ class PrivacyTests(TestCase):
         data = json.loads(resp.content)
         self.assertEqual(data['meta']['total_count'], 1)
 
-    def test_protected_repo_api(self):
-        self._create_kong('protected', 'protected')
-        self.client.login(username='eric', password='test')
-        resp = self.client.get("http://testserver/api/v1/project/django-kong/",
-                               data={"format": "json"})
-        self.assertEqual(resp.status_code, 200)
-        resp = self.client.get("http://testserver/api/v1/project/",
-                               data={"format": "json"})
-        data = json.loads(resp.content)
-        self.assertEqual(data['meta']['total_count'], 1)
-
-        self.client.login(username='tester', password='test')
-        resp = self.client.get("http://testserver/api/v1/project/",
-                               data={"format": "json"})
-        data = json.loads(resp.content)
-        self.assertEqual(data['meta']['total_count'], 0)
-
-        # Need to figure out how to properly filter the detail view in
-        # tastypie.  Protected stuff won't show up in detail pages on the API
-        # currently.
-        """
-        resp = self.client.get("http://testserver/api/v1/project/django-kong/",
-                               data={"format": "json"})
-        self.assertEqual(resp.status_code, 200)
-        """
-
     def test_private_repo_api(self):
         self._create_kong('private', 'private')
         self.client.login(username='eric', password='test')
@@ -265,7 +188,7 @@ class PrivacyTests(TestCase):
 
         self.client.login(username='eric', password='test')
         Version.objects.create(project=kong, identifier='test id',
-                               verbose_name='test verbose', slug='test-slug')
+                               verbose_name='test verbose', privacy_level='private', slug='test-slug', active=True)
         self.client.post('/dashboard/django-kong/versions/',
                          {'version-test-slug': 'on',
                           'privacy-test-slug': 'private'})
@@ -276,4 +199,122 @@ class PrivacyTests(TestCase):
         # Make sure it doesn't show up as tester
         self.client.login(username='tester', password='test')
         r = self.client.get('/docs/django-kong/en/test-slug/')
-        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.status_code, 404)
+
+# Private download tests
+
+    @override_settings(DEFAULT_PRIVACY_LEVEL='private')
+    def test_private_repo_downloading(self):
+        self._create_kong('private', 'private')
+
+        # Unauth'd user
+        self.client.login(username='tester', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 404)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 404)
+
+        # Auth'd user
+        self.client.login(username='eric', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r._headers['x-accel-redirect'][1], '/prod_artifacts/media/pdf/django-kong/latest/django-kong.pdf')
+
+    @override_settings(DEFAULT_PRIVACY_LEVEL='private')
+    def test_private_public_repo_downloading(self):
+        self._create_kong('public', 'public')
+
+        # Unauth'd user
+        self.client.login(username='tester', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r._headers['x-accel-redirect'][1], '/prod_artifacts/media/pdf/django-kong/latest/django-kong.pdf')
+
+        # Auth'd user
+        self.client.login(username='eric', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r._headers['x-accel-redirect'][1], '/prod_artifacts/media/pdf/django-kong/latest/django-kong.pdf')
+
+    @override_settings(DEFAULT_PRIVACY_LEVEL='private')
+    def test_private_download_filename(self):
+        self._create_kong('private', 'private')
+
+        self.client.login(username='eric', password='test')
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r._headers['x-accel-redirect'][1], '/prod_artifacts/media/pdf/django-kong/latest/django-kong.pdf')
+        self.assertEqual(r._headers['content-disposition'][1], 'filename=django-kong-latest.pdf')
+
+        r = self.client.get('/projects/django-kong/downloads/epub/latest/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r._headers['x-accel-redirect'][1], '/prod_artifacts/media/epub/django-kong/latest/django-kong.epub')
+        self.assertEqual(r._headers['content-disposition'][1], 'filename=django-kong-latest.epub')
+
+        r = self.client.get('/projects/django-kong/downloads/htmlzip/latest/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r._headers['x-accel-redirect'][1], '/prod_artifacts/media/htmlzip/django-kong/latest/django-kong.zip')
+        self.assertEqual(r._headers['content-disposition'][1], 'filename=django-kong-latest.zip')
+
+# Public download tests
+    @override_settings(DEFAULT_PRIVACY_LEVEL='public')
+    def test_public_repo_downloading(self):
+        self._create_kong('public', 'public')
+
+        # Unauth'd user
+        self.client.login(username='tester', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r._headers['location'][1], 'http://testserver/media/pdf/django-kong/latest/django-kong.pdf')
+
+        # Auth'd user
+        self.client.login(username='eric', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r._headers['location'][1], 'http://testserver/media/pdf/django-kong/latest/django-kong.pdf')
+
+    @override_settings(DEFAULT_PRIVACY_LEVEL='public')
+    def test_public_private_repo_downloading(self):
+        self._create_kong('private', 'private')
+
+        # Unauth'd user
+        self.client.login(username='tester', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 404)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 404)
+
+        # Auth'd user
+        self.client.login(username='eric', password='test')
+        r = self.client.get('/projects/django-kong/downloads/')
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r._headers['location'][1], 'http://testserver/media/pdf/django-kong/latest/django-kong.pdf')
+
+    @override_settings(DEFAULT_PRIVACY_LEVEL='public')
+    def test_public_download_filename(self):
+        self._create_kong('public', 'public')
+
+        self.client.login(username='eric', password='test')
+        r = self.client.get('/projects/django-kong/downloads/pdf/latest/')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r._headers['location'][1], 'http://testserver/media/pdf/django-kong/latest/django-kong.pdf')
+
+        r = self.client.get('/projects/django-kong/downloads/epub/latest/')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r._headers['location'][1], 'http://testserver/media/epub/django-kong/latest/django-kong.epub')
+
+        r = self.client.get('/projects/django-kong/downloads/htmlzip/latest/')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r._headers['location'][1], 'http://testserver/media/htmlzip/django-kong/latest/django-kong.zip')

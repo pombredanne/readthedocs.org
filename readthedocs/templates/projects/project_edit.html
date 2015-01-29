@@ -10,6 +10,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+  <script type="text/javascript" src="{{ MEDIA_URL }}javascript/rtd-import.js"></script>
   <script type="text/javascript" src="{{ MEDIA_URL }}lib/markitup/jquery.markitup.pack.js"></script>
   <script type="text/javascript" src="{{ MEDIA_URL }}lib/markitup/sets/sphinx/editor.js"></script>
   <script type="text/javascript">
@@ -24,16 +25,19 @@
 {% block editing-option-edit-proj %}class="active"{% endblock %}
 {% block editing-option-view %}active{% endblock %}
 
-{% block project_edit_content_header %}{{ project.name }} <small class="quiet">{% trans "Settings" %}</small>{% endblock %}
+{% block project_edit_content_header %}{% trans "Settings" %}{% endblock %}
 
 {% block project_edit_content %}
   <form method="post" action=".">{% csrf_token %}
+    <p class="empty">
+      You can change how your project is built in your <a href="../advanced/">Advanced Settings</a>.
+    </p>
     {{ form.as_p }}
     <p>
       <input style="display: inline;" type="submit" value="{% trans "Submit" %}">
       {% comment %}Translators: The 'or' here is in between 'Submit' and 'delete'.{% endcomment %}
       {% trans "or" %}
-       <a href="{% url projects_delete project.slug %}">{% trans "delete" %}</a>
+       <a href="{% url "projects_delete" project.slug %}">{% trans "delete" %}</a>
     </p>
   </form>
 {% endblock %}

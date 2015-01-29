@@ -2,6 +2,7 @@ import logging
 from collections import namedtuple
 import os
 from os.path import basename
+import shutil
 import subprocess
 
 from django.template.defaultfilters import slugify
@@ -38,7 +39,7 @@ class BaseCLI(object):
     """
     Helper class for CLI-heavy classes.
     """
-    log_tmpl = 'VCS[{name}:{ident}]: {args}'
+    log_tmpl = u'VCS[{name}:{ident}]: {args}'
 
     def __call__(self, *args):
         return self.run(args)
@@ -51,13 +52,21 @@ class BaseCLI(object):
                                    stderr=subprocess.PIPE,
                                    cwd=self.working_dir, shell=False,
                                    env=self.env)
-        log.info(self.log_tmpl.format(ident=basename(self.working_dir),
-                                      name=self.name,
-                                      args=' '.join(args)))
+        try:
+            log.info(self.log_tmpl.format(ident=basename(self.working_dir),
+                                          name=self.name,
+                                          args=' '.join(args)))
+        except UnicodeDecodeError:
+            # >:x
+            pass
         stdout, stderr = process.communicate()
-        log.info(self.log_tmpl.format(ident=basename(self.working_dir),
-                                      name=self.name,
-                                      args=stdout))
+        try:
+            log.info(self.log_tmpl.format(ident=basename(self.working_dir),
+                                          name=self.name,
+                                          args=stdout))
+        except UnicodeDecodeError:
+            # >:x
+            pass
         return (process.returncode, stdout, stderr)
 
     @property
@@ -78,7 +87,7 @@ class BaseVCS(BaseCLI):
     # General methods
     #==========================================================================
 
-    def __init__(self, project, version):
+    def __init__(self, project, version, **kwargs):
         self.default_branch = project.default_branch
         self.name = project.name
         self.repo_url = project.repo_url
@@ -87,6 +96,11 @@ class BaseVCS(BaseCLI):
     def check_working_dir(self):
         if not os.path.exists(self.working_dir):
             os.makedirs(self.working_dir)
+
+    def make_clean_working_dir(self):
+        "Ensures that the working dir exists and is empty"
+        shutil.rmtree(self.working_dir, ignore_errors=True)
+        self.check_working_dir()
 
     def update(self):
         """
@@ -116,6 +130,15 @@ class BaseVCS(BaseCLI):
         information.
         """
         raise NotImplementedError
+
+    
+    @property
+    def commit(self):
+        """
+        Returns a string representing the current commit.
+        """
+        raise NotImplementedError
+
 
     def checkout(self, identifier=None):
         """

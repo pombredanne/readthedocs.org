@@ -1,24 +1,82 @@
-{% extends "base.html" %}
+{% extends "projects/import_base.html" %}
 {% load i18n %}
-
-{% block title %}{% trans "Import an existing project" %}{% endblock %}
-
-{% block extra_scripts %}
-<script type="text/javascript" src="{{ MEDIA_URL }}javascript/rtd-import.js"></script>
-{% endblock %}
-
-{% block dashboard_bar %}
-  {% with import_active="active" %}
-    {% include "dashboard/dashboard_bar.html" %}
-  {% endwith %}
-{% endblock %}
-
-{% block content-header %}<h1>{% trans "Import an existing project" %}</h1>{% endblock %}
+{% load socialaccount %}
 
 {% block content %}
-  <form method="post" action=".">{% csrf_token %}
-    <p><input type="submit" value="{% trans "Create" %}" /></p>
-    {{ form.as_p }}
-    <p><input type="submit" value="{% trans "Create" %}" /></p>
-  </form>
+  <h1>{% trans "Import a Project" %}</h1>
+
+  <p class="info">
+    {% blocktrans %}
+      Import a project, using one of the methods below.
+      The project will be added to your dashboard and automatically built for the first time.
+    {% endblocktrans %}
+  </p>
+
+  {% get_social_accounts request.user as accounts %}
+
+  <div class="row">
+    <div class="col col-trisect">
+      <h3>{% trans "From GitHub" %}</h3>
+
+      {% if accounts.github.0 %}
+        <p>
+          {% blocktrans %}
+            Import one of your public GitHub repositories to start using your documentation.
+          {% endblocktrans %}
+        </p>
+
+        <form method="get" action="{% url "projects_import_github" %}">
+          <input type="submit" value="{% trans "Import from GitHub" %}"/>
+        </form>
+      {% else %}
+        <p>
+          {% blocktrans %}
+            Once your account is connected to your GitHub account,
+            you will be able to automatically import and configure your public GitHub repositories.
+          {% endblocktrans %}
+          <a href="{% provider_login_url "github" process="connect" next="/dashboard/import/" %}">Connect to Github</a>
+          {% trans "to import your first repository." %}
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="col col-trisect">
+      <h3>From Bitbucket</h3>
+
+      {% if accounts.bitbucket.0 %}
+        <p>
+          {% blocktrans %}
+            Import one of your public Bitbucket repositories to start using your documentation.
+          {% endblocktrans %}
+        </p>
+
+        <form method="get" action="{% url "projects_import_bitbucket" %}">
+          <input type="submit" value="{% trans "Import from Bitbucket" %}"/>
+        </form>
+      {% else %}
+        <p>
+          {% blocktrans %}
+            Once your account is connected to your Bitbucket account,
+            you will be able to automatically import and configure your <b>public Bitbucket repositories</b>.
+          {% endblocktrans %}
+          <a href="{% provider_login_url "bitbucket" process="connect" next="/dashboard/import/" %}">Connect to Bitbucket</a>
+          {% trans "to import your first repository." %}
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="col col-trisect">
+      <h3>{% trans "Manually Import" %}</h3>
+
+      <p class="info">
+        {% blocktrans %}
+          Public repositories can be imported manually from anywhere.
+        {% endblocktrans %}
+      </p>
+
+      <form action="{% url "projects_import_manual" %}" method="get">
+        <input type="submit" value="{% trans "Manually Import Project" %}"/>
+      </form>
+    </div>
+  </div>
 {% endblock %}

@@ -13,16 +13,26 @@
 {% endblock %}
 
 {% block content %}
-<div id="build_list">
 
-        {% comment %}
+{% comment %}
+
+<div class="navigable">
+<h3>
+Filters
+</h3>
+<ul>
         <form action="" method="get">
             {{ filter.form.as_p }}
             <input type="submit" value="Filter" />
         </form>
-        {% endcomment %}
+</ul>
 
-        {% autopaginate build_list 15 %}
+{% endcomment %}
+
+
+<div id="build_list">
+
+        {% autopaginate filter 15 %}
 
         <!-- BEGIN builds list -->
         <div class="module">
@@ -30,14 +40,14 @@
 
             <div class="module-header">
               <div style="float:right;">
-                <form method="post" action="{% url generic_build project.pk %}">
+                <form method="post" action="{% url "generic_build" project.pk %}">
                   <ul class="build_a_version">
                     <li style="display: inline-block">
                       <input style="display: inline-block" type="submit" value="{% trans "Build Version:" %}">
                     </li>
                     <li style="display: inline-block">
                       <select id="id_version" name="version_slug">
-                      {% for version in project.ordered_active_versions %}
+                      {% for version in versions %}
                         <option value="{{ version.slug }}">{{ version.slug }}</option>
                       {% endfor %}
                       </select>

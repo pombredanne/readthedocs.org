@@ -1,25 +1,83 @@
-The build process
-=================
+Build Process
+=============
 
-.. Keeping this for backwards compat
+Files: `tasks.py`_ - `doc_builder/`_
 
+.. _tasks.py: https://github.com/rtfd/readthedocs.org/blob/master/readthedocs/projects/tasks.py
+.. _doc_builder/: https://github.com/rtfd/readthedocs.org/tree/master/readthedocs/doc_builder
 
-Changing behavior for Read the Docs
------------------------------------
+How we build documentation
+--------------------------
 
-When RTD builds your project, it sets the ``READTHEDOCS`` environment variable to the string `True`. So within your Sphinx's conf.py file, you can vary the behavior based on this. For example::
+When we import your documentation, we look at two things first: your *Repository URL* and the *Documentation Type*.
+We will clone your repository,
+and then build your documentation using the *Documentation Type* specified.
 
-    import os
-    on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-    if on_rtd:
-        html_theme = 'default'
-    else:
-        html_theme = 'nature'
+Sphinx
+~~~~~~
 
-Deleting a stale or broken build environment
---------------------------------------------
+When you choose *Sphinx* as your *Documentation Type*,
+we will first look for a ``conf.py`` file in your repository.
+If we don't find one,
+we will generate one for you.
+We will look inside a ``doc`` or ``docs`` directory first,
+and then default to the top-level of your documentation.
 
-RTD doesn't expose this in the UI, but it is possible to remove the build directory of your project. If you want to remove a build environment for your project, hit http://readthedocs.org/wipe/<project_slug>/<version_slug>/. You must be logged in to do this.
+Then Sphinx will build any files with an ``.rst`` extension.
+If you have a ``README.rst``,
+it will be transformed into an ``index.rst`` automatically.
+
+Mkdocs
+~~~~~~
+
+When you choose *Mkdocs* as your *Documentation Type*,
+we will first look for a ``mkdocs.yml`` file in your repository.
+If we don't find one,
+we will generate one for you.
+We will look inside a ``doc`` or ``docs`` directory first,
+and then default to the top-level of your documentation.
+
+Then Sphinx will build any files with an ``.md`` extension.
+If you have a ``README.md``,
+it will be transformed into an ``index.md`` automatically.
+
+Understanding what's going on
+-----------------------------
+
+Understanding how Read the Docs builds your project will help you with debugging the problems you have with the site. It should also allow you to take advantage of certain things that happen during the build process.
+
+The first step of the process is that we check out your code from the repository you have given us. If the code is already checked out, we update the copy to the branch that you have specified in your projects configuration.
+
+Then we build the proper backend code for the type of documentation you've selected.
+
+If you have the *Use Virtualenv* option enabled, we will run ``setup.py install`` on your package, installing it into a virtual environment. You can also define additional packages to install with the *Requirements File* option.
+
+When we build your documentation, we run `sphinx-build -b html . _build/html`, where `html` would be replaced with the correct backend. We also create man pages and pdf's automatically based on your project.
+
+Then these files are copied across to our application servers from the build server. Once on the application servers, they are served from nginx. 
+
+An example in code:
+
+.. code-block:: python
+
+    update_imported_docs(version)
+    if exists('setup.py'):
+        run('python setup.py install')
+    if project.requirements_file:
+        run('pip install -r %s' % project.requirements_file)
+    build_docs(version=version)
+    copy_files(artifact_dir)
+    
+
+Builder Responsibility
+----------------------
+
+Builders have a very specific job.
+They take the updated source code and generate the correct artifacts.
+The code lives in ``self.version.project.checkout_path(self.version.slug)``.
+The artifacts should end up in ``self.version.project.artifact_path(version=self.version.slug, type=self.type)``
+Where ``type`` is the name of your builder.
+All files that end up in the artifact directory should be in their final form.
 
 Packages installed in the build environment
 -------------------------------------------
@@ -33,33 +91,10 @@ The build server does have a select number of C libraries installed, because the
     * libxslt1.1
     * libxml2-dev
 
-Understanding what's going on
------------------------------
-
-.. note:: Builds happen on a server using only the RTD Public API. There is no reason that you couldn't build your own independent builder that wrote into the RTD namespace. The only thing that is currently unsupported there is a saner way than uploading the processed files as a zip.
-
-Understanding how Read the Docs builds your project will help you with debugging the problems you have with the site. It should also allow you to take advantage of certain things that happen during the build process.
-
-The first step of the process is that we check out your code from the repository you have given us. If the code is already checked out, we update the copy to the branch that you have specified in your projects configuration.
-
-Then we build the proper backend code for the type of documentation you've selected. Currently we only support Sphinx, but we are looking to expand this selection.
-
-When we build your documentation, we run `sphinx-build -b html . _build/html`, where `html` would be replaced with the correct backend. We also create man pages and pdf's automatically based on your project.
-
-Then these files are rsync'd across to our application servers from the build server. Once on the application servers, they are served from nginx and then cached in Varnish for a week. This Varnish cache is pro-actively purged whenever a new version of your docs are built.
-
-An example in code::
-
-    update_imported_docs(project, version)
-    (ret, out, err) = build_docs(project=project, version=version,
-                                 pdf=pdf, man=man, epub=epub, dash=dash,
-                                 record=record, force=force)
-    #This follows the builder workflow layed out below.
-    purge_version(version, subdomain=True,
-                    mainsite=True, cname=True)
-
 Writing your own builder
 ------------------------
+
+.. note:: Builds happen on a server using only the RTD Public API. There is no reason that you couldn't build your own independent builder that wrote into the RTD namespace. The only thing that is currently unsupported there is a saner way than uploading the processed files as a zip.
 
 The documentation build system in RTD is made pluggable, so that you can build out your own backend. If you have a documentation format that isn't currently supported, you can add support by contributing a backend.
 
@@ -72,3 +107,9 @@ The :doc:`api/doc_builder` API explains the higher level parts of the API that y
     backend.build(version)
     if success:
         backend.move(version)
+
+Deleting a stale or broken build environment
+--------------------------------------------
+
+RTD doesn't expose this in the UI, but it is possible to remove the build directory of your project. If you want to remove a build environment for your project, hit http://readthedocs.org/wipe/<project_slug>/<version_slug>/. You must be logged in to do this.
+

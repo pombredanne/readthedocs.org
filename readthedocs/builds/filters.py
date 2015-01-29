@@ -14,19 +14,17 @@ BUILD_TYPES = ANY_REPO + constants.BUILD_TYPES
 
 
 class VersionSlugFilter(django_filters.FilterSet):
-    slug = django_filters.CharFilter(label=_("Name"), name='slug',
-                                     lookup_type='icontains')
-    tag = django_filters.CharFilter(label=_("Tag"), name='tags',
-                                    lookup_type='name__icontains')
 
     class Meta:
         model = Version
-        fields = ['slug', 'tag']
+        fields = {
+            'identifier': ['icontains'],
+            'slug': ['icontains'],
+        }
 
 
 class VersionFilter(django_filters.FilterSet):
-    project = django_filters.CharFilter(name='project__name',
-                                        lookup_type="icontains")
+    project = django_filters.CharFilter(name='project__slug')
     slug = django_filters.CharFilter(label=_("Name"), name='slug',
                                      lookup_type='icontains')
 
@@ -36,7 +34,7 @@ class VersionFilter(django_filters.FilterSet):
 
 
 class BuildFilter(django_filters.FilterSet):
-    date = django_filters.DateRangeFilter(label=_("Build Date"), name="date")
+    date = django_filters.DateRangeFilter(label=_("Build Date"), name="date", lookup_type='range')
     type = django_filters.ChoiceFilter(label=_("Build Type"),
                                        choices=BUILD_TYPES)
 

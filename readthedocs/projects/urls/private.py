@@ -1,85 +1,122 @@
-from django.conf.urls.defaults import patterns, url
+from django.conf.urls import patterns, url
+
+from projects.views.private import AliasList, ProjectDashboard, ImportView
+from projects.backends.views import ImportWizardView, ImportDemoView
+
 
 urlpatterns = patterns(
     # base view, flake8 complains if it is on the previous line.
-    'projects.views.private',
+    '',
     url(r'^$',
-        'project_dashboard',
+        ProjectDashboard.as_view(),
         name='projects_dashboard'),
 
     url(r'^import/$',
-        'project_import',
+        ImportView.as_view(wizard_class=ImportWizardView),
+        {'wizard': ImportWizardView},
         name='projects_import'),
 
-    url(r'^upload_html/(?P<project_slug>[-\w]+)/$',
-        'upload_html',
-        name='projects_upload_html'),
+    url(r'^import/manual/$',
+        ImportWizardView.as_view(),
+        name='projects_import_manual'),
 
-    url(r'^export/(?P<project_slug>[-\w]+)/$',
-        'export',
-        name='projects_export'),
+    url(r'^import/manual/demo/$',
+        ImportDemoView.as_view(),
+        name='projects_import_demo'),
+
+    url(r'^import/github/$',
+        'projects.views.private.project_import_github',
+        {'sync': False},
+        name='projects_import_github'),
+
+    url(r'^import/github/sync/$',
+        'projects.views.private.project_import_github',
+        {'sync': True},
+        name='projects_sync_github'),
+
+    url(r'^import/bitbucket/$',
+        'projects.views.private.project_import_bitbucket',
+        {'sync': False},
+        name='projects_import_bitbucket'),
+
+    url(r'^import/bitbucket/sync/$',
+        'projects.views.private.project_import_bitbucket',
+        {'sync': True},
+        name='projects_sync_bitbucket'),
 
     url(r'^(?P<project_slug>[-\w]+)/$',
-        'project_manage',
+        'projects.views.private.project_manage',
         name='projects_manage'),
 
     url(r'^(?P<project_slug>[-\w]+)/alias/(?P<id>\d+)/',
-        'edit_alias',
+        'projects.views.private.edit_alias',
         name='projects_alias_edit'),
 
     url(r'^(?P<project_slug>[-\w]+)/alias/$',
-        'edit_alias',
+        'projects.views.private.edit_alias',
         name='projects_alias_create'),
 
     url(r'^(?P<project_slug>[-\w]+)/alias/list/$',
-        'list_alias',
+        AliasList.as_view(),
         name='projects_alias_list'),
 
     url(r'^(?P<project_slug>[-\w]+)/edit/$',
-        'project_edit',
+        'projects.views.private.project_edit',
         name='projects_edit'),
 
+    url(r'^(?P<project_slug>[-\w]+)/advanced/$',
+        'projects.views.private.project_advanced',
+        name='projects_advanced'),
+
     url(r'^(?P<project_slug>[-\w]+)/version/(?P<version_slug>[-\w.]+)/$',
-        'project_version_detail',
+        'projects.views.private.project_version_detail',
         name='project_version_detail'),
 
     url(r'^(?P<project_slug>[-\w]+)/versions/$',
-        'project_versions',
+        'projects.views.private.project_versions',
         name='projects_versions'),
 
     url(r'^(?P<project_slug>[-\w]+)/delete/$',
-        'project_delete',
+        'projects.views.private.project_delete',
         name='projects_delete'),
 
     url(r'^(?P<project_slug>[-\w]+)/subprojects/delete/(?P<child_slug>[-\w]+)/$',  # noqa
-        'project_subprojects_delete',
+        'projects.views.private.project_subprojects_delete',
         name='projects_subprojects_delete'),
 
     url(r'^(?P<project_slug>[-\w]+)/subprojects/$',
-        'project_subprojects',
+        'projects.views.private.project_subprojects',
         name='projects_subprojects'),
 
     url(r'^(?P<project_slug>[-\w]+)/users/$',
-        'project_users',
+        'projects.views.private.project_users',
         name='projects_users'),
 
     url(r'^(?P<project_slug>[-\w]+)/users/delete/$',
-        'project_users_delete',
+        'projects.views.private.project_users_delete',
         name='projects_users_delete'),
 
     url(r'^(?P<project_slug>[-\w]+)/notifications/$',
-        'project_notifications',
+        'projects.views.private.project_notifications',
         name='projects_notifications'),
 
     url(r'^(?P<project_slug>[-\w]+)/notifications/delete/$',
-        'project_notifications_delete',
+        'projects.views.private.project_notifications_delete',
         name='projects_notification_delete'),
 
     url(r'^(?P<project_slug>[-\w]+)/translations/$',
-        'project_translations',
+        'projects.views.private.project_translations',
         name='projects_translations'),
 
     url(r'^(?P<project_slug>[-\w]+)/translations/delete/(?P<child_slug>[-\w]+)/$',  # noqa
-        'project_translations_delete',
+        'projects.views.private.project_translations_delete',
         name='projects_translations_delete'),
+
+    url(r'^(?P<project_slug>[-\w]+)/redirects/$',
+        'projects.views.private.project_redirects',
+        name='projects_redirects'),
+
+    url(r'^(?P<project_slug>[-\w]+)/redirects/delete/$',
+        'projects.views.private.project_redirects_delete',
+        name='projects_redirects_delete'),
 )

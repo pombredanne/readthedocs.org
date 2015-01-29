@@ -2,7 +2,7 @@ import logging
 import json
 
 from django.contrib.auth.models import User
-from django.conf.urls.defaults import url
+from django.conf.urls import url
 from django.shortcuts import get_object_or_404
 
 from tastypie import fields
@@ -13,12 +13,12 @@ from tastypie.http import HttpCreated, HttpApplicationError
 from tastypie.utils import dict_strip_unicode_keys, trailing_slash
 
 from builds.models import Build, Version
+from core.utils import trigger_build
 from projects.models import Project, ImportedFile
 from projects.utils import highest_version, mkversion, slugify_uniquely
-from projects import tasks
 from djangome import views as djangome
 
-from .utils import SearchMixin, PostAuthentication, EnhancedModelResource
+from .utils import SearchMixin, PostAuthentication
 
 log = logging.getLogger(__name__)
 
@@ -29,28 +29,22 @@ class ProjectResource(ModelResource, SearchMixin):
     class Meta:
         include_absolute_url = True
         allowed_methods = ['get', 'post', 'put']
-        queryset = Project.objects.public()
+        queryset = Project.objects.api()
         authentication = PostAuthentication()
         authorization = DjangoAuthorization()
-        excludes = ['path', 'featured']
+        excludes = ['path', 'featured', 'programming_language']
         filtering = {
             "users": ALL_WITH_RELATIONS,
             "slug": ALL_WITH_RELATIONS,
         }
 
     def get_object_list(self, request):
-        self._meta.queryset = Project.objects.public(user=request.user)
+        self._meta.queryset = Project.objects.api(user=request.user)
         return super(ProjectResource, self).get_object_list(request)
 
     def dehydrate(self, bundle):
         bundle.data['subdomain'] = "http://%s/" % bundle.obj.subdomain
-        downloads = {}
-        downloads['htmlzip'] = bundle.obj.get_htmlzip_url()
-        downloads['epub'] = bundle.obj.get_epub_url()
-        downloads['pdf'] = bundle.obj.get_pdf_url()
-        downloads['manpage'] = bundle.obj.get_manpage_url()
-        downloads['dash'] = bundle.obj.get_dash_url()
-        bundle.data['downloads'] = downloads
+        bundle.data['downloads'] = bundle.obj.get_downloads()
         return bundle
 
     def post_list(self, request, **kwargs):
@@ -63,18 +57,16 @@ class ProjectResource(ModelResource, SearchMixin):
         If a new resource is created, return ``HttpCreated`` (201 Created).
         """
         deserialized = self.deserialize(
-            request, request.raw_post_data,
+            request, request.body,
             format=request.META.get('CONTENT_TYPE', 'application/json')
         )
 
         # Force this in an ugly way, at least should do "reverse"
         deserialized["users"] = ["/api/v1/user/%s/" % request.user.id]
-        bundle = self.build_bundle(data=dict_strip_unicode_keys(deserialized))
-        self.is_valid(bundle, request)
+        bundle = self.build_bundle(data=dict_strip_unicode_keys(deserialized), request=request)
+        self.is_valid(bundle)
         updated_bundle = self.obj_create(bundle, request=request)
         return HttpCreated(location=self.get_resource_uri(updated_bundle))
-
-
 
     def sync_versions(self, request, **kwargs):
         """
@@ -85,7 +77,7 @@ class ProjectResource(ModelResource, SearchMixin):
         project = get_object_or_404(Project, pk=kwargs['pk'])
         try:
             post_data = self.deserialize(
-                request, request.raw_post_data,
+                request, request.body,
                 format=request.META.get('CONTENT_TYPE', 'application/json')
             )
             data = json.loads(post_data)
@@ -104,7 +96,6 @@ class ProjectResource(ModelResource, SearchMixin):
             )
         return self.create_response(request, deleted_versions)
 
-
     def override_urls(self):
         return [
             url(r"^(?P<resource_name>%s)/schema/$" % self._meta.resource_name,
@@ -121,14 +112,13 @@ class ProjectResource(ModelResource, SearchMixin):
         ]
 
 
-class VersionResource(EnhancedModelResource):
+class VersionResource(ModelResource):
     project = fields.ForeignKey(ProjectResource, 'project', full=True)
 
     class Meta:
-        queryset = Version.objects.all()
         allowed_methods = ['get', 'put', 'post']
         always_return_data = True
-        queryset = Version.objects.public()
+        queryset = Version.objects.api()
         authentication = PostAuthentication()
         authorization = DjangoAuthorization()
         filtering = {
@@ -145,8 +135,7 @@ class VersionResource(EnhancedModelResource):
     #     return bundle
 
     def get_object_list(self, request):
-        self._meta.queryset = Version.objects.public(user=request.user,
-                                                     only_active=False)
+        self._meta.queryset = Version.objects.api(user=request.user, only_active=False)
         return super(VersionResource, self).get_object_list(request)
 
     def version_compare(self, request, **kwargs):
@@ -180,7 +169,7 @@ class VersionResource(EnhancedModelResource):
         project = get_object_or_404(Project, slug=kwargs['project_slug'])
         version = kwargs.get('version_slug', 'latest')
         version_obj = project.versions.get(slug=version)
-        tasks.update_docs.delay(pk=project.pk, version_pk=version_obj.pk)
+        trigger_build(project=project, version=version_obj)
         return self.create_response(request, {'building': True})
 
     def override_urls(self):
@@ -210,7 +199,7 @@ class VersionResource(EnhancedModelResource):
         ]
 
 
-class BuildResource(EnhancedModelResource):
+class BuildResource(ModelResource):
     project = fields.ForeignKey('api.base.ProjectResource', 'project')
     version = fields.ForeignKey('api.base.VersionResource', 'version')
 
@@ -218,7 +207,7 @@ class BuildResource(EnhancedModelResource):
         always_return_data = True
         include_absolute_url = True
         allowed_methods = ['get', 'post', 'put']
-        queryset = Build.objects.all()
+        queryset = Build.objects.api()
         authentication = PostAuthentication()
         authorization = DjangoAuthorization()
         filtering = {
@@ -227,6 +216,10 @@ class BuildResource(EnhancedModelResource):
             "type": ALL_WITH_RELATIONS,
             "state": ALL_WITH_RELATIONS,
         }
+
+    def get_object_list(self, request):
+        self._meta.queryset = Build.objects.api(user=request.user)
+        return super(BuildResource, self).get_object_list(request)
 
     def override_urls(self):
         return [
@@ -241,7 +234,7 @@ class BuildResource(EnhancedModelResource):
         ]
 
 
-class FileResource(EnhancedModelResource, SearchMixin):
+class FileResource(ModelResource, SearchMixin):
     project = fields.ForeignKey(ProjectResource, 'project', full=True)
 
     class Meta:
@@ -286,6 +279,7 @@ class FileResource(EnhancedModelResource, SearchMixin):
 
 
 class UserResource(ModelResource):
+
     class Meta:
         allowed_methods = ['get']
         queryset = User.objects.all()

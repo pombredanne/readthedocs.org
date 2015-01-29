@@ -3,51 +3,40 @@ Read the Docs features
 
 This will serve as a list of all of the features that Read the Docs currently has. Some features are important enough to have their own page in the docs, others will simply be listed here.
 
-Github Integration
-------------------
+Github and Bitbucket Integration
+--------------------------------
 
-We now support linking to GitHub by default in the sidebar. It links to the page on GitHub, and directly links to the edit view as well. This should help people quickly update typos and send pull requests to contribute to project documentation. Note that users must be logged in to GitHub in order to directly jump into the edit view via the "Edit on GitHub" link, otherwise they'll be presented with an unfortunate 404 page. The user does not, however, need to be logged on to use the "Show in GitHub" link. 
+We now support linking by default in the sidebar. It links to the page on your host, which should help people quickly update typos and send pull requests to contribute to project documentation. 
 
-If you want to integrate this into your own theme, the following variables are available in your custom templates:
-
-* github_user - GitHub username
-* github_repo - GitHub repo name
-* github_version - Github blob
-* conf_py_path - Path in the checkout to the docs root
-* pagename - Sphinx variable representing the name of the page you're on.
-* display_github
-
-It can be used like this::
-
-      {% if display_github %}
-        <li><a href="https://github.com/{{ github_user }}/{{ github_repo }}/blob/{{ github_version }}{{ conf_py_path }}{{ pagename }}.rst">
-          Show on GitHub</a></li>
-        <li><a href="https://github.com/{{ github_user }}/{{ github_repo }}/edit/{{ github_version }}{{ conf_py_path }}{{ pagename }}.rst">
-          Edit on GitHub</a></li>
-      {% endif %}
-
-Screenshot
-~~~~~~~~~~
-
-.. image:: /img/edit_on_github.png
-
+More information can be found in the :doc:`vcs` page.
 
 Auto-updating
 -------------
 
 The :doc:`webhooks` page talks about the different ways you can ping RTD to let us know your project has been updated. We have official support for Github, and anywhere else we have a generic post-commit hook that allows you to POST to a URL to get your documentation built.
 
-Heavily Cached
+Internationalization
+--------------------
+
+Read the Docs itself is localized, and we support documentation translated into multiple languages. Read more on the :doc:`localization` and :doc:`i18n` pages.
+
+Canonical URLs
 --------------
 
-We run Varnish in front of RTD, so a lot of the docs you look at will be served out of memory. This is really great for the "Look up and link" that happens a lot on IRC channels. The person who looks up the link will cache the page, and the person they link it to will get it served really quickly.
+Canonical URLs give your docs better search performance, by pointing all URLs to one version. This also helps to solve the issues around users landing on outdated versions of documentation.
 
-We also bust caches on all documentation on the RTD domain (not CNAMEs, yet) when you build your docs, so you shouldn't have problems with stale caches.
+More information can be found in the :doc:`canonical` page.
 
 Versions
 --------
 
-Versions are supported at the Version Control level. We support tags and branches that map to versions in RTD parlance. Not all version control systems are equally supported. We would love to accept patches from users of other VCS systems to gain equivalent features across systems.
+We can build multiple versions of your documentation. Look on the "Versions" page 
+of your project's admin (using the nav on the left) to find a list of available versions 
+that we've inferred from the tags and branches in your source control system (according to 
+the support matrix below). On the Versions page you can tell us which versions you'd like us 
+to build docs for, whether each should be public, protected, or private, and what the default 
+version should be (we'll redirect there when someone hits your main project page, e.g., 
+http://my-project.rtfd.org/).
 
 Version Control Support Matrix
 -------------------------------
@@ -55,8 +44,6 @@ Version Control Support Matrix
 +------------+------------+-----------+------------+-----------+
 |            |    Git     |    hg     |   bzr      |     svn   |
 +============+============+===========+============+===========+
-| Updating   |    Yes     |    Yes    |   Yes      |    Yes    |
-+------------+------------+-----------+------------+-----------+
 | Tags       |    Yes     |    Yes    |   No       |    No     |
 +------------+------------+-----------+------------+-----------+
 | Branches   |    Yes     |    Yes    |   Yes      |    No     |
@@ -80,24 +67,3 @@ Alternate Domains
 
 We provide support for CNAMEs, subdomains, and a shorturl for your project as well. This is outlined in the :doc:`alternate_domains` section.
 
-Intersphinx Support
--------------------
-
-We host intersphinx catalogs for all projects built on Read the Docs. For more info on this support, read the Sphinx docs on  :mod:`Intersphinx <sphinx:sphinx.ext.intersphinx>`. Your configuration should look something like this::
-
-    intersphinx_mapping = {
-      'python': ('http://python.readthedocs.org/en/latest/', None),
-      'django': ('http://django.readthedocs.org/en/latest/', None),
-      'sphinx': ('http://sphinx.readthedocs.org/en/latest/', None),
-        }
-
-Then usage is pretty similar. You reference something using normal sphinx syntax, but can use the namespace of the project you want to reference, like so:
-
-.. code-block:: rest 
-
-    :mod:`Intersphinx <sphinx.ext.intersphinx>`
-    :mod:`Intersphinx <sphinx:sphinx.ext.intersphinx>`
-
-This will create a link to the official Sphinx documentation for intersphinx.
-
-More information can be found on Reinout van Rees' blog: http://reinout.vanrees.org/weblog/2012/12/01/django-intersphinx.html

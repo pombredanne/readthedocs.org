@@ -11,7 +11,7 @@ If you are still seeing errors because of C library dependencies, please see the
 How do I change behavior for Read the Docs?
 -------------------------------------------
 
-When RTD builds your project, it sets the `READTHEDOCS` environment variable to the string `True`. So within your Sphinx's conf.py file, you can vary the behavior based on this. For example::
+When RTD builds your project, it sets the `READTHEDOCS` environment variable to the string `True`. So within your Sphinx's ``conf.py`` file, you can vary the behavior based on this. For example::
 
     import os
     on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -34,51 +34,71 @@ I get import errors on libraries that depend on C modules
 
 This happens because our build system doesn't have the dependencies for building your project. This happens with things like libevent and mysql, and other python things that depend on C libraries. We can't support installing random C binaries on our system, so there is another way to fix these imports.
 
-You can mock out the imports for these modules in your conf.py with the following snippet::
+You can mock out the imports for these modules in your ``conf.py`` with the following snippet::
 
     import sys
+    from unittest.mock import MagicMock
 
-    class Mock(object):
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __call__(self, *args, **kwargs):
-            return Mock()
-
+    class Mock(MagicMock):
         @classmethod
         def __getattr__(cls, name):
-            if name in ('__file__', '__path__'):
-                return '/dev/null'
-            elif name[0] == name[0].upper():
-                mockType = type(name, (), {})
-                mockType.__module__ = __name__
-                return mockType
-            else:
                 return Mock()
 
-    MOCK_MODULES = ['pygtk', 'gtk', 'gobject', 'argparse']
-    for mod_name in MOCK_MODULES:
-        sys.modules[mod_name] = Mock()
+    MOCK_MODULES = ['pygtk', 'gtk', 'gobject', 'argparse', 'numpy', 'pandas']
+    sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 Of course, replacing `MOCK_MODULES` with the modules that you want to mock out.
+
+.. Tip:: The library ``unittest.mock`` was introduced on python 3.3. On earlier versions install the ``mock`` library
+    from PyPI with (ie ``pip install mock``) and replace the above import::
+
+        from mock import Mock as MagicMock
+
+`Client Error 401` when building documentation
+----------------------------------------------
+
+If you did not install the `test_data` fixture during the installation
+instructions, you will get the following error::
+
+    slumber.exceptions.HttpClientError: Client Error 401: http://localhost:8000/api/v1/version/
+
+This is because the API admin user does not exist, and so cannot authenticate.
+You can fix this by loading the test_data::
+
+    ./manage.py loaddata test_data
+
+If you'd prefer not to install the test data, you'll need to provide a database
+account for the builder to use. You can provide these credentials by editing the
+following settings::
+
+    SLUMBER_USERNAME = 'test'
+    SLUMBER_PASSWORD = 'test'
 
 Can I make search engines only see one version of my docs?
 ----------------------------------------------------------
 
 You can do this for Google at least with a canonical link tag.
-It looks something along the lines of:
+It should look like:
 
-.. code-block:: html
+.. code-block:: jinja
 
-    <link rel="canonical" href="http://$YOURSLUG.readthedocs.org/en/latest/
-    {%- for word in pagename.split('/') -%}
-        {%- if word != 'index' -%}
-            {%- if word != '' -%}
-                {{ word }}/
+        <link rel="canonical" href="http://ericholscher.com/
+        {%- for word in pagename.split('/') -%}
+            {%- if word != 'index' -%}
+                {%- if word != '' -%}
+                    {{ word }}/
+                {%- endif -%}
             {%- endif -%}
-        {%- endif -%}
-    {%- endfor -%}
-    ">
+        {%- endfor -%}
+        {% if builder == "dirhtml" %}/{% else %}.html{% endif %}
+        ">
+
+
+Deleting a stale or broken build environment
+--------------------------------------------
+
+RTD doesn't expose this in the UI, but it is possible to remove the build directory of your project. If you want to remove a build environment for your project, hit http://readthedocs.org/wipe/<project_slug>/<version_slug>/. You must be logged in to do this.
+
 
 How do I host multiple projects on one CNAME?
 ---------------------------------------------
@@ -130,10 +150,7 @@ RTD doesn't have explicit support for this. That said, a tool like `Disqus`_ can
 How do I support multiple languages of documentation?
 -----------------------------------------------------
 
-This is something that has been long planned. In fact, we have a language string in the URLs! However, it isn't currently modeled and supported in the code base. However, you can specify the conf.py file to use for a specific version of the documentation. So, you can create a project for each language of documentation, and do it that way. You can then CNAME different domains on your docs to them. Requests does something like this with it's translations:
-
- * http://ja.python-requests.org/en/latest/index.html
- * http://docs.python-requests.org/en/latest/index.html
+See the section on :ref:`Localization of Documentation`.
 
 Do I need to be whitelisted?
 ----------------------------
@@ -141,7 +158,7 @@ Do I need to be whitelisted?
 No. Whitelisting has been removed as a concept in Read the Docs. You should have access to all of the features already.
 
 Does Read The Docs work well with "legible" docstrings?
---------------------------------------------------
+-------------------------------------------------------
 
 Yes. One criticism of Sphinx is that its annotated docstrings are too
 dense and difficult for humans to read. In response, many projects

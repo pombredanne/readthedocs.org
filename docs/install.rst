@@ -3,12 +3,14 @@
 Installation
 =============
 
-Installing RTD is pretty simple. Here is a step by step plan on how to do it.
+Here is a step by step plan on how to install Read the Docs. 
+It will get you to a point of having a local running instance.
 
 First, obtain Python_ and virtualenv_ if you do not already have them. Using a
 virtual environment will make the installation easier, and will help to avoid
 clutter in your system-wide libraries. You will also need Git_ in order to
 clone the repository.
+
 
 .. _Python: http://www.python.org/
 .. _virtualenv: http://pypi.python.org/pypi/virtualenv
@@ -21,11 +23,20 @@ activate it::
     cd rtd
     source bin/activate
 
+
+You will need to verify that your pip version is higher than 1.5 you can do this as such::
+
+    pip --version
+
+If this is not the case please update your pip version before continuing::
+
+    pip install --upgrade pip
+
 Create a folder in here, and clone the repository::
 
     mkdir checkouts
     cd checkouts
-    git clone http://github.com/rtfd/readthedocs.org.git
+    git clone https://github.com/rtfd/readthedocs.org.git
 
 Next, install the dependencies using ``pip`` (included with virtualenv_)::
 
@@ -41,6 +52,20 @@ Next, install the dependencies using ``pip`` (included with virtualenv_)::
         CFLAGS=-I/usr/local/opt/libxml2/include/libxml2 \
         LDFLAGS=-L/usr/local/opt/libxml2/lib \
         pip install -r pip_requirements.txt
+
+.. note::
+
+    Linux users may find they need to install a few additional packages
+    in order to successfully execute ``pip-install -r pip_requirements.txt``.
+    For example, a clean install of Ubuntu 14.04 LTS will require the
+    following packages::
+
+        sudo apt-get install build-essential
+        sudo apt-get install python-dev
+        sudo apt-get install libxml2-dev libxslt1-dev zlib1g-dev
+
+    Users of other Linux distributions may need to install the equivalent
+    packages, depending on their system configuration.
 
 .. _Homebrew: http://brew.sh/
 
@@ -58,10 +83,16 @@ Go ahead and load in a couple users and a test projects::
 
     ./manage.py loaddata test_data
 
+.. note::
+
+    If you do not opt to install test data, you'll need to create an account for
+    API use and set ``SLUMBER_USERNAME`` and ``SLUMBER_PASSWORD`` in order for
+    everything to work properly.
+
 Finally, you're ready to start the webserver::
 
     ./manage.py runserver
- 
+
 Visit http://127.0.0.1:8000/ in your browser to see how it looks; you can use
 the admin interface via http://127.0.0.1:8000/admin (logging in with the
 superuser account you just created).
@@ -72,52 +103,13 @@ with the name of any added project::
 
    ./manage.py update_repos pip
 
-
-Solr (Search) Setup
--------------------
-Apache Solr is used to index and search documents. 
-
-Additional python requirements necessary to use Solr::
-
-    pip install pysolr
-    pip install pyquery
-
-Fetch and unpack Solr::
-
-    curl -O http://archive.apache.org/dist/lucene/solr/3.5.0/apache-solr-3.5.0.tgz
-    tar xvzf apache-solr-3.5.0.tgz && SOLR_PATH=`pwd`/apache-solr-3.5.0/example
-
-Generate the schema.xml file::
-
-    ./manage.py build_solr_schema > $SOLR_PATH/solr/conf/schema.xml
-
-Start the server::
-
-    cd $SOLR_PATH && java -jar start.jar
-
-Index the data::
-    
-    ./manage.py build_files # creates database objects referencing project files
-    ./manage.py update_index
-
-.. note::
-
-    For production environments, you'll want to run Solr in a more permanent
-    servelet container, such as Tomcat or Jetty. Ubuntu distributions include
-    prepackaged Solr installations. Try ``aptitude install solr-tomcat`` or 
-    ``aptitude install solr-jetty.``
-
-    See /etc/[solr|tomcat6|jetty] for configuration options.  The ``schema.xml``
-    file must be replaced with the version built by django-haystack.
-
-
 What's available
 ----------------
 
 After registering with the site (or creating yourself a superuser account),
 you will be able to log in and view the `dashboard <http://readthedocs.org/dashboard/>`_.
 
-From the dashboard you can either create new documentation, or import your existing
+From the dashboard you can import your existing
 docs provided that they are in a git or mercurial repo.
 
 

@@ -1,7 +1,7 @@
 Webhooks
 ========
 
-Web hooks are pretty amazing, and help to turn the web into a push instead of
+Webhooks are pretty amazing, and help to turn the web into a push instead of
 pull platform. We have support for hitting a URL whenever you commit to your
 project and we will try and rebuild your docs. This only rebuilds them if
 something has changed, so it is cheap on the server side. As anyone who has
@@ -14,11 +14,12 @@ Github
 If your project is hosted on Github, you can easily add a hook that will rebuild
 your docs whenever you push updates:
 
-* Go to the "admin" page for your project
-* Click "Service Hooks"
-* In the available service hooks, click "ReadTheDocs"
+* Go to the "Settings" page for your project
+* Click "Webhooks & Services"
+* In the "Services" section, click "Add service"
+* In the list of available services, click "ReadTheDocs"
 * Check "Active"
-* Click "Update Settings"
+* Click "Add service"
 
 Bitbucket
 -----------
@@ -27,15 +28,15 @@ If your project is hosted on Bitbucket, you can easily add a hook that will rebu
 your docs whenever you push updates:
 
 * Go to the "admin" page for your project
-* Click "Services"
+* Click "Hooks"
 * In the available service hooks, select "Read the Docs"
-* Click "Add service"
+* Click "Add hook"
 
 Others
 ------
 
 Your ReadTheDocs project detail page has your post-commit hook on it; it will
-look something along the lines of ``http://readthedocs.org/build/<pk>``.
+look something along the lines of ``http://readthedocs.org/build/<project_name>``.
 Regardless of which revision control system you use, you can just hit this URL
 to kick off a rebuild.
 

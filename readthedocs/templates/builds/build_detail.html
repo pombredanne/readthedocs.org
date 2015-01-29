@@ -14,7 +14,7 @@
 {% block content-header %}<h1>{% blocktrans with build.project.name as project_name %}Build for {{ project_name }}{% endblocktrans %}</h1>{% endblock %}
 
 {% block content %}
-  <div id="build-{{ build.id }}">
+  <div id="build-{{ build.id }}" class="build">
     <p>{% blocktrans with build.date|date:"N j, Y. P" as build_date %}Built: {{ build_date }}{% endblocktrans %}</p>
 
     <p>{% trans "State:" %} <b><span id="build-state">{{ build.get_state_display }}</span></b>
@@ -24,7 +24,7 @@
     <p>{% trans "Outcome:" %}
       <b>
         <span id="build-success">
-          {% if build.state != 'finished' %}{% trans "Not yet finished" %} {% else %} {% if build.success %}{% trans "Passed" %}{% else %}{% trans "Failed" %}{% endif %}{% endif %}
+          {% if build.state != 'finished' %}{% trans "Not yet finished" %} {% else %} {% if build.success %}{% trans "Passed" %}{% else %}{% trans "Failed" %}{% endif %}{% endif %} {% if not build.success %} ({% trans "Status Code:" %} {{ build.exit_code }}){% endif %}
         </span>
       </b>
     </p>
@@ -35,11 +35,15 @@
 
     <p>{% trans "Type:" %} <b>{{ build.type }}</b></p>
 
-    <h3>{% trans "Sphinx Standard Output" %}</h3>
+    {% if build.commit %}
+    <p>{% trans "Commit" %}: <b>{{ build.commit }}</b></p>
+    {% endif %}
+
+    <h3>{% trans "Build Standard Output" %}</h3>
     <pre class="build-output"><span id="build-output">{{ build.output }}</span></pre>
 
     {% if build.error %}
-    <h3>{% trans "Sphinx Standard Error" %}</h3>
+    <h3>{% trans "Build Standard Error" %}</h3>
     <pre class="build-error"><span id="build-error">{{ build.error }}</span></pre>
     {% endif %}
 

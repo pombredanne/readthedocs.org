@@ -26,9 +26,10 @@ HAYSTACK_CONNECTIONS = {
 CACHES = {
     'default': {
         'BACKEND': 'redis_cache.cache.RedisCache',
-        'LOCATION': 'localhost:6379:1',
+        'LOCATION': 'localhost:6379',
         'PREFIX': 'docs',
         'OPTIONS': {
+            'DB': 1,
             'CLIENT_CLASS': 'redis_cache.client.DefaultClient',
         },
     },
@@ -39,8 +40,6 @@ SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 SLUMBER_API_HOST = 'http://localhost:8000'
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTOCOL", "https")
 SESSION_COOKIE_DOMAIN = None
-
-TEST_RUNNER = 'django_nose.NoseTestSuiteRunner'
 
 SLUMBER_USERNAME = 'test'
 SLUMBER_PASSWORD = 'test'
@@ -56,5 +55,5 @@ DONT_HIT_DB = False
 
 try:
     from local_settings import *  # noqa
-except:
+except ImportError:
     pass

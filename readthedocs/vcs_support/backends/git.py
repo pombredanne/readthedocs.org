@@ -1,9 +1,8 @@
+import re
 import logging
 import csv
 import os
-from os.path import exists, join as pjoin
 from StringIO import StringIO
-from shutil import rmtree
 
 from projects.exceptions import ProjectImportError
 from vcs_support.backends.github import GithubContributionBackend
@@ -18,44 +17,54 @@ class Backend(BaseVCS):
     contribution_backends = [GithubContributionBackend]
     fallback_branch = 'master'  # default branch
 
-    def check_working_dir(self):
-        if exists(self.working_dir):
-            code, out, err = self.run('git', 'config', '-f',
-                                      pjoin(self.working_dir, '.git/config'),
-                                      '--get', 'remote.origin.url')
-            if out.strip() != self.repo_url:
-                rmtree(self.working_dir)
-        super(Backend, self).check_working_dir()
+
+    def __init__(self, *args, **kwargs):
+        super(Backend, self).__init__(*args, **kwargs)
+        self.token = kwargs.get('token', None)
+        self.repo_url = self._get_clone_url()
+
+    def _get_clone_url(self):
+        if '://' in self.repo_url:
+            hacked_url = self.repo_url.split('://')[1]
+            hacked_url = re.sub('.git$', '', hacked_url)
+            clone_url = 'https://%s' % hacked_url
+            if self.token:
+                clone_url = 'https://%s@%s' % (self.token, hacked_url)
+                return clone_url
+            # Don't edit URL because all hosts aren't the same
+            #else:
+                #clone_url = 'git://%s' % (hacked_url)
+        return self.repo_url
+
+    def set_remote_url(self, url):
+        return self.run('git', 'remote', 'set-url', 'origin', url)
 
     def update(self):
-        super(Backend, self).update()
-        code, out, err = self.run('git', 'status')
-        if code == 0:
-            self.pull()
-        else:
-            self.clone()
-        self.run('git', 'submodule', 'sync')
-        self.run('git', 'submodule', 'update', '--init', '--recursive')
-        return self.reset()
+        # Use checkout() to update repo
+        self.checkout()
 
-    def pull(self):
+    def repo_exists(self):
+        code, out, err = self.run('git', 'status')
+        return code == 0
+
+    def fetch(self):
         code, out, err = self.run('git', 'fetch', '--prune')
-        code, out, err = self.run('git',  'fetch', '-t')
         if code != 0:
             raise ProjectImportError(
-                "Failed to get code from '%s' (git fetch): %s" % (
-                    self.repo_url, code)
+                "Failed to get code from '%s' (git fetch): %s\n\nStderr:\n\n%s\n\n" % (
+                    self.repo_url, code, err)
             )
 
-    def reset(self):
-        branch = self.fallback_branch
-        if self.default_branch:
-            branch = self.default_branch
-        code, out, err = self.run('git', 'reset', '--hard',
-                                  'origin/%s' % branch)
+    def checkout_revision(self, revision=None):
+        if not revision:
+            branch = self.default_branch or self.fallback_branch
+            revision = 'origin/%s' % branch
+
+        code, out, err = self.run('git', 'checkout',
+                                  '--force', '--quiet', revision)
         if code != 0:
-            log.warning("Failed to get code from '%s' (git reset): %s" % (
-                self.repo_url, code))
+            log.warning("Failed to checkout revision '%s': %s" % (
+                revision, code))
         return [code, out, err]
 
     def clone(self):
@@ -130,7 +139,7 @@ class Backend(BaseVCS):
                 if branch.startswith('origin/'):
                     cut_len = len('origin/')
                     slug = branch[cut_len:].replace('/', '-')
-                    if slug in ['HEAD', self.fallback_branch]:
+                    if slug in ['HEAD']:
                         continue
                     clean_branches.append(VCSVersion(self, branch, slug))
                 else:
@@ -139,16 +148,57 @@ class Backend(BaseVCS):
                     clean_branches.append(VCSVersion(self, branch, slug))
         return clean_branches
 
+    @property
+    def commit(self):
+        retcode, stdout, err = self.run('git', 'rev-parse', 'HEAD')
+        return stdout.strip()
+
     def checkout(self, identifier=None):
-        super(Backend, self).checkout()
-        #Run update so that we can pull new versions.
-        self.update()
+        self.check_working_dir()
+
+        # Clone or update repository
+        if self.repo_exists():
+            self.set_remote_url(self.repo_url)
+            self.fetch()
+        else:
+            self.make_clean_working_dir()
+            self.clone()
+
+        # Find proper identifier
         if not identifier:
-            identifier = self.fallback_branch
-            if self.default_branch:
-                identifier = self.default_branch
+            identifier = self.default_branch or self.fallback_branch
+
+        identifier = self.find_ref(identifier)
+
         #Checkout the correct identifier for this branch.
-        return self.run('git', 'reset', '--hard', identifier, '--')
+        code, out, err = self.checkout_revision(identifier)
+        if code != 0:
+            return code, out, err
+
+        # Clean any remains of previous checkouts
+        self.run('git', 'clean', '-d', '-f', '-f')
+
+        # Update submodules
+        self.run('git', 'submodule', 'sync')
+        self.run('git', 'submodule', 'update',
+                 '--init', '--recursive', '--force')
+
+        return code, out, err
+
+    def find_ref(self, ref):
+        # Check if ref starts with 'origin/'
+        if ref.startswith('origin/'):
+            return ref
+
+        # Check if ref is a branch of the origin remote
+        if self.ref_exists('remotes/origin/' + ref):
+            return 'origin/' + ref
+
+        return ref
+
+    def ref_exists(self, ref):
+        code, out, err = self.run('git', 'show-ref', ref)
+        return code == 0
 
     @property
     def env(self):

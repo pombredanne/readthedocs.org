@@ -9,13 +9,37 @@ import logging
 from httplib2 import Http
 
 from django.conf import settings
-
 from distutils2.version import NormalizedVersion, suggest_normalized_version
 import redis
 
 
 log = logging.getLogger(__name__)
 
+def version_from_slug(slug, version):
+    from projects import tasks
+    from builds.models import Version
+    from tastyapi import apiv2 as api
+    if getattr(settings, 'DONT_HIT_DB', True):
+        version_data = api.version().get(project=slug, slug=version)['results'][0]
+        v = tasks.make_api_version(version_data)
+    else:
+        v = Version.objects.get(project__slug=slug, slug=version)
+    return v
+
+def symlink(project, version='latest'):
+    from projects import symlinks
+    v = version_from_slug(project, version)
+    log.info("Symlinking %s" % v)
+    symlinks.symlink_subprojects(v)
+    symlinks.symlink_cnames(v)
+    symlinks.symlink_translations(v)
+
+def update_static_metadata(project_pk):
+    """
+    This is here to avoid circular imports in models.py
+    """
+    from projects import tasks
+    tasks.update_static_metadata.delay(project_pk)
 
 def find_file(file):
     """Find matching filenames in the current directory and its subdirectories,
@@ -94,12 +118,14 @@ def _custom_slugify(data):
 def slugify_uniquely(model, initial, field, max_length, **filters):
     slug = _custom_slugify(initial)[:max_length]
     current = slug
+    """
     base_qs = model.objects.filter(**filters)
     index = 0
     while base_qs.filter(**{field: current}).exists():
         suffix = '-%s' % index
         current = '%s%s'  % (slug, suffix)
         index += 1
+    """
     return current
 
 
@@ -203,3 +229,21 @@ def make_api_project(project_data):
     project = Project(**project_data)
     project.save = _new_save
     return project
+
+
+def github_paginate(client, url):
+    """
+    Scans trough all github paginates results and returns the concatenated
+    list of results.
+
+    :param client: requests client instance
+    :param url: start url to get the data from.
+
+    See https://developer.github.com/v3/#pagination
+    """
+    result = []
+    while url:
+        r = session.get(url)
+        result.extend(r.json())
+        url = r.links.get('next')
+    return result

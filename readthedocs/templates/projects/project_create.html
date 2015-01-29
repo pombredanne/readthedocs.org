@@ -8,14 +8,6 @@
 
 {% block dash-nav-create %}active{% endblock %}
 
-{% block dashboard_bar %}
-  {% with dash_nav_create="active" %}
-    {% include "dashboard/dashboard_bar.html" %}
-  {% endwith %}
-{% endblock %}
-
-
-
 {% block extra_scripts %}
   <script type="text/javascript" src="{{ MEDIA_URL }}lib/markitup/jquery.markitup.pack.js"></script>
   <script type="text/javascript" src="{{ MEDIA_URL }}lib/markitup/sets/sphinx/editor.js"></script>
@@ -35,7 +27,7 @@
 {% block content %}
       <p class="help_text">
         {% trans "Create new documentation here. If you already have docs in a public repository," %}
-        <a class="" href="{% url projects_import %}">{% trans "import an existing project" %}</a>.
+        <a class="" href="{% url "projects_import" %}">{% trans "import an existing project" %}</a>.
       </p>
       <form method="post" action=".">{% csrf_token %}
         {{ form.as_p }}

@@ -4,9 +4,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../readthedocs'))
-import settings.sqlite
-from django.core.management import setup_environ
-setup_environ(settings.sqlite)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings.sqlite")
+from django.conf import settings
 
 
 sys.path.append(os.path.abspath('_ext'))
@@ -43,4 +42,20 @@ man_pages = [
      [u'Eric Holscher, Charlie Leifer, Bobby Grace'], 1)
 ]
 
-RTD_NEW_THEME = True
+exclude_patterns = [
+    #'api' # needed for ``make gettext`` to not die.
+]
+
+language = 'en'
+
+locale_dirs = [
+    'locale/',
+]
+gettext_compact = False
+
+
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if not on_rtd:  # only import and set the theme if we're building docs locally
+    import sphinx_rtd_theme
+    html_theme = 'sphinx_rtd_theme'
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]

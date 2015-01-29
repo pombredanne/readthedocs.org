@@ -9,7 +9,7 @@
 {% block editing-option-edit-proj %}class="active"{% endblock %}
 
 {% block project-subprojects-active %}active{% endblock %}
-{% block project_edit_content_header %}{{ project.name }} <small class="quiet">{% trans "Subprojects" %}</small>{% endblock %}
+{% block project_edit_content_header %}{% trans "Subprojects" %}{% endblock %}
 
 {% block project_edit_content %}
   <p class="help_text">
@@ -24,7 +24,7 @@
         <a href="{{ relationship.get_absolute_url }}">
         {{ relationship.child }}
         </a>
-        (<a href="{% url projects_subprojects_delete relationship.parent.slug relationship.child.slug %}">{% trans "Remove" %}</a>)
+        (<a href="{% url "projects_subprojects_delete" relationship.parent.slug relationship.child.slug %}">{% trans "Remove" %}</a>)
         </li>
     {% endfor %}
     </ul>
@@ -42,7 +42,7 @@
 
 {% block footerjs %}
       $('#id_subproject').autocomplete({
-    source: '{% url search_autocomplete %}',
+    source: '{% url "search_autocomplete" %}',
     minLength: 2,
     open: function(event, ui) {
       ac_top = $('.ui-autocomplete').css('top');

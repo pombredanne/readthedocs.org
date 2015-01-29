@@ -1,13 +1,18 @@
 Running tests
 =============
 
-Currently RTD isn't well tested. This is a problem, and it is being worked on. However, we do have a basic test suite. To run the tests, you need simply need to run::
+Read the Docs ships with a test suite that tests the application. You should run these tests when you are doing development before committing code.
 
-    ./manage.py test rtd_tests
+They can be run easily::
 
-This should spit out a bunch of info, build a couple projects, and eventually pass.
+    pip install coverage 
+    ./runtests.sh
+
+This should print out a bunch of information and pass with 0 errors.
 
 Continuous Integration
 ----------------------
 
-The fine folks over at `Django CMS <https://www.django-cms.org/>`_ have been nice enough to sponsor our CI setup on their hudson instance. You can check out the current build status: http://ci.django-cms.org/job/readthedocs.org/
+The RTD test suite is exercised by Travis CI on every push to our repo at
+GitHub. You can check out the current build status:
+https://travis-ci.org/rtfd/readthedocs.org

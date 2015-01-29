@@ -1,0 +1,2147 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+#
+# Translators:
+# Bashar Al-Abdulhadi, 2014
+msgid ""
+msgstr ""
+"Project-Id-Version: readthedocs\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2014-09-21 14:17-0500\n"
+"PO-Revision-Date: 2014-04-24 21:43+0000\n"
+"Last-Translator: Eric Holscher <eric@ericholscher.com>\n"
+"Language-Team: Arabic (http://www.transifex.com/projects/p/readthedocs/"
+"language/ar/)\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+
+#: api/utils.py:86
+msgid "Sorry, no results on that page."
+msgstr "عذرا, لا توجد نتائج في تلك الصفحة."
+
+#: api/utils.py:169
+#, python-format
+msgid "Invalid resource lookup data provided (mismatched type).: %(error)s"
+msgstr ""
+
+#: bookmarks/models.py:9 builds/models.py:85 builds/models.py:280
+#: builds/models.py:296 projects/models.py:760 redirects/models.py:34
+msgid "Project"
+msgstr "المشروع"
+
+#: bookmarks/models.py:11 core/models.py:13 projects/models.py:102
+msgid "User"
+msgstr "المستخدم"
+
+#: bookmarks/models.py:13 builds/models.py:304
+msgid "Date"
+msgstr "التاريخ"
+
+#: bookmarks/models.py:14 templates/djangome/show.html:12
+msgid "URL"
+msgstr "العنوان"
+
+#: bookmarks/models.py:15 oauth/models.py:37 projects/models.py:106
+#: templates/core/project_details.html:82
+msgid "Description"
+msgstr "الوصف"
+
+#: bookmarks/models.py:21
+#, python-format
+msgid "Bookmark %(url)s for %(user)s (%(pk)s)"
+msgstr ""
+
+#: builds/constants.py:4
+msgid "Triggered"
+msgstr "أثار"
+
+#: builds/constants.py:5
+msgid "Cloning"
+msgstr ""
+
+#: builds/constants.py:6
+msgid "Installing"
+msgstr ""
+
+#: builds/constants.py:7
+msgid "Building"
+msgstr "البناء"
+
+#: builds/constants.py:8
+msgid "Finished"
+msgstr "انتهى"
+
+#: builds/constants.py:12
+msgid "HTML"
+msgstr "HTML"
+
+#: builds/constants.py:13
+msgid "PDF"
+msgstr "PDF"
+
+#: builds/constants.py:14
+msgid "Epub"
+msgstr "Epub"
+
+#: builds/constants.py:15
+msgid "Manpage"
+msgstr "صفحة التعليمات"
+
+#: builds/constants.py:16
+msgid "Dash"
+msgstr ""
+
+#: builds/constants.py:20
+msgid "Branch"
+msgstr ""
+
+#: builds/constants.py:21 builds/filters.py:19
+msgid "Tag"
+msgstr ""
+
+#: builds/constants.py:22
+msgid "Unknown"
+msgstr ""
+
+#: builds/filters.py:10 projects/filters.py:9
+msgid "Any"
+msgstr ""
+
+#: builds/filters.py:17 builds/filters.py:29 oauth/models.py:17
+#: oauth/models.py:35 projects/filters.py:31 projects/models.py:104
+#: projects/models.py:764
+msgid "Name"
+msgstr "الاسم"
+
+#: builds/filters.py:38
+msgid "Build Date"
+msgstr ""
+
+#: builds/filters.py:39
+msgid "Build Type"
+msgstr ""
+
+#: builds/models.py:88 builds/models.py:300
+msgid "Type"
+msgstr "النوع"
+
+#: builds/models.py:92
+msgid "Identifier"
+msgstr "معرّف"
+
+#: builds/models.py:94
+msgid "Verbose Name"
+msgstr "اسم مطوّل"
+
+#: builds/models.py:95 projects/filters.py:33 projects/models.py:105
+#: projects/models.py:765
+msgid "Slug"
+msgstr "Slug"
+
+#: builds/models.py:97
+msgid "Supported"
+msgstr ""
+
+#: builds/models.py:98 oauth/models.py:19 oauth/models.py:42
+#: redirects/models.py:12 templates/projects/project_versions.html:46
+msgid "Active"
+msgstr "فعّال"
+
+#: builds/models.py:99 templates/projects/includes/icon_built.html:4
+msgid "Built"
+msgstr "بني"
+
+#: builds/models.py:100 templates/projects/includes/icon_built.html:7
+msgid "Uploaded"
+msgstr "تم الرفع"
+
+#: builds/models.py:102 projects/models.py:199
+msgid "Privacy Level"
+msgstr ""
+
+#: builds/models.py:103
+msgid "Level of privacy for this Version."
+msgstr ""
+
+#. Translators: Permission around whether a user can view the
+#. version
+#: builds/models.py:114
+msgid "View Version"
+msgstr ""
+
+#: builds/models.py:118
+#, python-format
+msgid "Version %(version)s of %(project)s (%(pk)s)"
+msgstr ""
+
+#: builds/models.py:282
+msgid "From slug"
+msgstr "من Slug"
+
+#: builds/models.py:283
+msgid "To slug"
+msgstr "إلى Slug"
+
+#: builds/models.py:285
+msgid "Largest"
+msgstr "الأكبر"
+
+#: builds/models.py:288
+#, python-format
+msgid "Alias for %(project)s: %(from)s -> %(to)s"
+msgstr ""
+
+#: builds/models.py:298 projects/models.py:119 projects/models.py:762
+#: templates/djangome/oneoffs.html:11
+msgid "Version"
+msgstr "الإصدار"
+
+#: builds/models.py:302
+msgid "State"
+msgstr "الوضعية"
+
+#: builds/models.py:305
+msgid "Success"
+msgstr "نجاح"
+
+#: builds/models.py:307
+msgid "Setup"
+msgstr "إعداد"
+
+#: builds/models.py:308
+msgid "Setup error"
+msgstr "إعداد خاطئ"
+
+#: builds/models.py:309
+msgid "Output"
+msgstr "الناتج"
+
+#: builds/models.py:310
+msgid "Error"
+msgstr "خطأ"
+
+#: builds/models.py:311
+msgid "Exit code"
+msgstr ""
+
+#: builds/models.py:313 templates/builds/build_detail.html:39
+msgid "Commit"
+msgstr ""
+
+#: builds/models.py:320
+#, python-format
+msgid "Build %(project)s for %(usernames)s (%(pk)s)"
+msgstr ""
+
+#: core/forms.py:14
+msgid "First name"
+msgstr "الاسم الأول"
+
+#: core/forms.py:15
+msgid "Last name"
+msgstr "اسم العائلة"
+
+#: core/middleware.py:70
+msgid "Invalid hostname"
+msgstr "اسم مضيف غير صالح"
+
+#: core/models.py:15
+msgid "Whitelisted"
+msgstr "إضافة للقائمة البيضاء"
+
+#: core/models.py:16
+msgid "Homepage"
+msgstr "الصفحة الرئيسية"
+
+#: core/models.py:17
+msgid "Allow email"
+msgstr "السماح لبريد"
+
+#: core/models.py:18
+msgid "Show your email on VCS contributions."
+msgstr "عرض بريدك الإلكتروني في صفحة مساهمات VCS"
+
+#: core/models.py:23
+#, python-format
+msgid "%(username)s's profile"
+msgstr "الملف الشخصي لـ %(username)s"
+
+#: djangome/views.py:25
+#, python-format
+msgid "Please enter a valid URL on %s"
+msgstr "الرجاء إدخال عنوان صحيح على %s"
+
+#: oauth/models.py:7 oauth/models.py:28 projects/models.py:98
+msgid "Publication date"
+msgstr "تاريخ النشر"
+
+#: oauth/models.py:8 oauth/models.py:29 projects/models.py:99
+msgid "Modified date"
+msgstr "تاريخ التعديل"
+
+#: oauth/models.py:10 oauth/models.py:31
+#, fuzzy
+msgid "Users"
+msgstr "المستخدم"
+
+#: oauth/models.py:13
+msgid "Login"
+msgstr ""
+
+#: oauth/models.py:15
+msgid "Email"
+msgstr ""
+
+#: oauth/models.py:18 oauth/models.py:41
+#, fuzzy
+msgid "HTML URL"
+msgstr "HTML"
+
+#: oauth/models.py:33
+#, fuzzy
+msgid "Organization"
+msgstr "تقليدي"
+
+#: oauth/models.py:36
+#, fuzzy
+msgid "Full Name"
+msgstr "الاسم"
+
+#: oauth/models.py:38 projects/models.py:107
+msgid "The reStructuredText description of the project"
+msgstr ""
+
+#: oauth/models.py:39
+msgid "Git URL"
+msgstr ""
+
+#: oauth/models.py:40
+msgid "SSH URL"
+msgstr ""
+
+#: projects/constants.py:18
+msgid "Sphinx Html"
+msgstr "Sphinx Html"
+
+#: projects/constants.py:19
+msgid "Sphinx HtmlDir"
+msgstr "Sphinx HtmlDir"
+
+#: projects/constants.py:20
+msgid "Sphinx Single Page HTML"
+msgstr ""
+
+#: projects/constants.py:21
+msgid "Mkdocs"
+msgstr ""
+
+#. Translators: This is a name of a Sphinx theme.
+#: projects/constants.py:29
+msgid "Default"
+msgstr "الإفتراضي"
+
+#. Translators: This is a name of a Sphinx theme.
+#: projects/constants.py:31
+msgid "Sphinx Docs"
+msgstr "مستندات Sphinx"
+
+#. Translators: This is a name of a Sphinx theme.
+#: projects/constants.py:35
+msgid "Traditional"
+msgstr "تقليدي"
+
+#. Translators: This is a name of a Sphinx theme.
+#: projects/constants.py:37
+msgid "Nature"
+msgstr "طبيعة"
+
+#. Translators: This is a name of a Sphinx theme.
+#: projects/constants.py:39
+msgid "Haiku"
+msgstr "Haiku"
+
+#: projects/constants.py:68
+msgid "Live"
+msgstr "مباشر"
+
+#: projects/constants.py:69
+msgid "Deleted"
+msgstr "حُذف"
+
+#: projects/constants.py:73
+msgid "Git"
+msgstr "Git"
+
+#: projects/constants.py:74
+msgid "Subversion"
+msgstr "Subversion"
+
+#: projects/constants.py:75
+msgid "Mercurial"
+msgstr "Mercurial"
+
+#: projects/constants.py:76
+msgid "Bazaar"
+msgstr "Bazaar"
+
+#: projects/constants.py:84
+msgid "Public"
+msgstr ""
+
+#: projects/constants.py:85
+msgid "Protected"
+msgstr ""
+
+#: projects/constants.py:86
+msgid "Private"
+msgstr ""
+
+#: projects/constants.py:97
+msgid "CPython 2.x"
+msgstr ""
+
+#: projects/constants.py:98
+msgid "CPython 3.x"
+msgstr ""
+
+#: projects/filters.py:34
+msgid "Created Date"
+msgstr ""
+
+#: projects/filters.py:36 projects/models.py:109
+msgid "Repository URL"
+msgstr "عنوان المستودع"
+
+#: projects/filters.py:39
+msgid "Repository Type"
+msgstr ""
+
+#: projects/forms.py:26
+msgid "A project with that name exists already!"
+msgstr "هناك مشروع بهذا الاسم موجود سلفا!"
+
+#: projects/forms.py:34
+msgid ""
+"URL for your code (hg or git). Ex. http://github.com/ericholscher/django-"
+"kong.git"
+msgstr ""
+
+#: projects/forms.py:56
+msgid "Invalid character in repo name"
+msgstr ""
+
+#: projects/forms.py:59
+msgid ""
+"It looks like you entered a private repo - please use the public (http:// or "
+"git://) clone url"
+msgstr ""
+
+#: projects/forms.py:76 projects/models.py:187
+msgid "(Beta) The Python interpreter used to create the virtual environment."
+msgstr ""
+
+#: projects/forms.py:105
+msgid ""
+"Your configuration file is invalid, make sure it contains conf.py in it."
+msgstr ""
+
+#: projects/forms.py:177 templates/core/project_details.html:172
+msgid "Default Version"
+msgstr ""
+
+#: projects/forms.py:200
+msgid "Zip file of HTML"
+msgstr "ملف مضغوط من ملفات HTML"
+
+#: projects/forms.py:202
+msgid "Overwrite existing HTML?"
+msgstr ""
+
+#: projects/forms.py:215
+msgid "That version is already active!"
+msgstr ""
+
+#: projects/forms.py:217
+msgid "Must upload a zip file."
+msgstr "يجب رفع ملف مضغوط."
+
+#: projects/forms.py:231
+msgid "Version of the project you are uploading HTML for"
+msgstr ""
+
+#: projects/forms.py:248 projects/forms.py:325
+#, python-format
+msgid "Project %(name)s does not exist"
+msgstr ""
+
+#: projects/forms.py:269
+#, python-format
+msgid "User %(name)s does not exist"
+msgstr ""
+
+#: projects/models.py:83
+msgid "Parent"
+msgstr "أبوي"
+
+#: projects/models.py:85
+msgid "Child"
+msgstr "بنوي"
+
+#: projects/models.py:110
+msgid ""
+"Checkout URL for your code (hg, git, etc.). Ex. http://github.com/"
+"ericholscher/django-kong.git"
+msgstr ""
+
+#: projects/models.py:113
+msgid "Repository type"
+msgstr "نوع المستودع"
+
+#: projects/models.py:115
+msgid "Project URL"
+msgstr "عنوان رابط المشروع"
+
+#: projects/models.py:116
+msgid "The project's homepage"
+msgstr "الصفحة الرئيسية للمشروع"
+
+#: projects/models.py:117
+msgid "Canonical URL"
+msgstr ""
+
+#: projects/models.py:118
+msgid ""
+"The official URL that the docs live at. This can be slug.readthedocs.org, or "
+"somewhere else. Ex. http://docs.fabfile.org"
+msgstr ""
+
+#: projects/models.py:120
+msgid "Project version these docs apply to, i.e. 1.0a"
+msgstr ""
+
+#: projects/models.py:122 templates/sphinx/sphinx_rtd_theme/layout.html:58
+#: templates/sphinx/sphinx_rtd_theme/layout_old.html:140
+msgid "Copyright"
+msgstr "حق النشر"
+
+#: projects/models.py:123
+msgid "Project copyright information"
+msgstr "معلومات حقوق نشر المشروع"
+
+#: projects/models.py:125
+msgid "Theme"
+msgstr "القالب"
+
+#: projects/models.py:128
+msgid "Examples"
+msgstr "أمثلة"
+
+#: projects/models.py:129
+msgid "Suffix"
+msgstr "لاحقة"
+
+#: projects/models.py:132
+msgid "Single version"
+msgstr ""
+
+#: projects/models.py:133
+msgid ""
+"A single version site has no translations and only your \"latest\" version, "
+"served at the root of the domain. Use this with caution, only turn it on if "
+"you will <b>never</b> have multiple versions of your docs."
+msgstr ""
+
+#: projects/models.py:135
+msgid "Default version"
+msgstr "الإصدار الإفتراضي"
+
+#: projects/models.py:136
+msgid "The version of your project that / redirects to"
+msgstr ""
+
+#: projects/models.py:140
+msgid "Default branch"
+msgstr ""
+
+#: projects/models.py:141
+msgid ""
+"What branch \"latest\" points to. Leave empty to use the default value for "
+"your VCS (eg. trunk or master)."
+msgstr ""
+
+#: projects/models.py:145
+msgid "Requirements file"
+msgstr "ملف المتطلبات"
+
+#: projects/models.py:147
+msgid ""
+"Requires Virtualenv. A <a href=\"http://www.pip-installer.org/en/latest/"
+"cookbook.html#requirements-files\">pip requirements file</a> needed to build "
+"your documentation. Path from the root of your project."
+msgstr ""
+
+#: projects/models.py:152
+msgid "Documentation type"
+msgstr ""
+
+#: projects/models.py:154
+msgid ""
+"Type of documentation you are building. <a href=\"http://sphinx-doc.org/"
+"builders.html#sphinx.builders.html.DirectoryHTMLBuilder\">More info</a>."
+msgstr ""
+
+#: projects/models.py:158
+msgid "Analytics code"
+msgstr "رمز الإحصائيات"
+
+#: projects/models.py:159
+msgid ""
+"Google Analytics Tracking ID (ex. UA-22345342-1). This may slow down your "
+"page loads."
+msgstr ""
+
+#: projects/models.py:163 projects/models.py:766
+msgid "Path"
+msgstr "المسار"
+
+#: projects/models.py:164
+msgid "The directory where conf.py lives"
+msgstr ""
+
+#: projects/models.py:166
+msgid "Python configuration file"
+msgstr ""
+
+#: projects/models.py:167
+msgid ""
+"Path from project root to conf.py file (ex. docs/conf.py). Leave blank if "
+"you want us to find it for you."
+msgstr ""
+
+#: projects/models.py:170
+msgid "Featured"
+msgstr "مميز"
+
+#: projects/models.py:171
+msgid "Skip"
+msgstr "تخطي"
+
+#: projects/models.py:172
+msgid "Mirror"
+msgstr ""
+
+#: projects/models.py:174
+msgid "Use virtualenv"
+msgstr ""
+
+#: projects/models.py:175
+msgid "Install your project inside a virtualenv using setup.py install"
+msgstr ""
+
+#: projects/models.py:183
+msgid "Python Interpreter"
+msgstr ""
+
+#: projects/models.py:191
+msgid "Use system packages"
+msgstr ""
+
+#: projects/models.py:192
+msgid "Give the virtual environment access to the global site-packages dir."
+msgstr ""
+
+#: projects/models.py:196
+msgid "Django Packages URL"
+msgstr ""
+
+#: projects/models.py:201
+msgid ""
+"(Beta) Level of privacy that you want on the repository. Protected means "
+"public but not in listings."
+msgstr ""
+
+#: projects/models.py:204
+msgid "Version Privacy Level"
+msgstr ""
+
+#: projects/models.py:206
+msgid ""
+"(Beta) Default level of privacy you want on built versions of documentation."
+msgstr ""
+
+#: projects/models.py:211
+msgid "Related projects"
+msgstr ""
+
+#: projects/models.py:215
+msgid "Language"
+msgstr ""
+
+#: projects/models.py:216
+msgid ""
+"The language the project documentation is rendered in. Note: this affects "
+"your project's URL."
+msgstr ""
+
+#: projects/models.py:227
+msgid "Number of Major versions"
+msgstr ""
+
+#: projects/models.py:232
+msgid "2 means supporting 3.X.X and 2.X.X, but not 1.X.X"
+msgstr ""
+
+#: projects/models.py:235
+msgid "Number of Minor versions"
+msgstr ""
+
+#: projects/models.py:240
+msgid "2 means supporting 2.2.X and 2.1.X, but not 2.0.X"
+msgstr ""
+
+#: projects/models.py:243
+msgid "Number of Point versions"
+msgstr ""
+
+#: projects/models.py:248
+msgid "2 means supporting 2.2.2 and 2.2.1, but not 2.2.0"
+msgstr ""
+
+#. Translators: Permission around whether a user can view the
+#. project
+#: projects/models.py:259 templates/projects/project_import_github.html:65
+msgid "View Project"
+msgstr ""
+
+#: projects/models.py:286
+msgid "Model must have slug"
+msgstr ""
+
+#: projects/models.py:767
+msgid "MD5 checksum"
+msgstr ""
+
+#: projects/models.py:795
+msgid "URL to send the webhook to"
+msgstr ""
+
+#: redirects/models.py:7
+msgid "301 - Permanent Redirect"
+msgstr ""
+
+#: redirects/models.py:8
+msgid "302 - Temporary Redirect"
+msgstr ""
+
+#: redirects/models.py:13
+#, fuzzy
+msgid "Inactive"
+msgstr "فعّال"
+
+#: redirects/models.py:17
+msgid "Prefix Redirect"
+msgstr ""
+
+#: redirects/models.py:18
+msgid "Page Redirect"
+msgstr ""
+
+#: redirects/models.py:19
+#, fuzzy
+msgid "Sphinx HTMLDir -> HTML"
+msgstr "Sphinx HtmlDir"
+
+#: redirects/models.py:20
+#, fuzzy
+msgid "Sphinx HTML -> HTMLDir"
+msgstr "Sphinx HtmlDir"
+
+#: redirects/models.py:24
+msgid ""
+"Absolute path, excluding the domain.Example: <b>/docs/</b>  or <b>/install."
+"html</b>."
+msgstr ""
+
+#: redirects/models.py:27
+msgid "Absolute or relative url. Examples: <b>/tutorial/install.html.</b>"
+msgstr ""
+
+#: redirects/models.py:30
+msgid "The type of redirect you wish to use."
+msgstr ""
+
+#: redirects/models.py:36
+msgid "Redirect Type"
+msgstr ""
+
+#: redirects/models.py:38
+#, fuzzy
+msgid "From URL"
+msgstr "عنوان رابط المشروع"
+
+#: redirects/models.py:41
+#, fuzzy
+msgid "To URL"
+msgstr "العناوين القصيرة"
+
+#: redirects/models.py:44
+msgid "HTTP Status"
+msgstr ""
+
+#: redirects/models.py:53
+msgid "redirect"
+msgstr ""
+
+#: redirects/models.py:54
+msgid "redirects"
+msgstr ""
+
+#: redirects/models.py:59
+#, python-format
+msgid "Redirect: %s ->"
+msgstr ""
+
+#: redirects/models.py:61
+#, python-format
+msgid "Redirect: %s -> %s"
+msgstr ""
+
+#: redirects/models.py:63
+#, python-format
+msgid "Redirect: %s"
+msgstr ""
+
+#: settings/base.py:59
+msgid "English"
+msgstr "الإنجليزية"
+
+#: settings/base.py:60
+msgid "Spanish"
+msgstr ""
+
+#: settings/base.py:61
+msgid "Norwegian Bokmål"
+msgstr ""
+
+#: settings/base.py:62
+msgid "French"
+msgstr ""
+
+#: settings/base.py:63
+msgid "Russian"
+msgstr ""
+
+#: settings/base.py:64
+msgid "German"
+msgstr ""
+
+#: settings/base.py:65
+msgid "Galician"
+msgstr ""
+
+#: settings/base.py:66
+msgid "Vietnamese"
+msgstr ""
+
+#: settings/base.py:67
+msgid "Chinese"
+msgstr ""
+
+#: settings/base.py:68
+msgid "Taiwanese"
+msgstr ""
+
+#: settings/base.py:69
+msgid "Japanese"
+msgstr ""
+
+#: settings/base.py:70
+msgid "Ukrainian"
+msgstr ""
+
+#: templates/401.html:6 templates/404.html:6
+msgid "Maze Found"
+msgstr ""
+
+#: templates/500.html:5
+msgid "Server Error"
+msgstr ""
+
+#. Translators: Name of the website
+#: templates/base.html:13 templates/error_header.html:12
+#: templates/core/header.html:10 templates/core/home-header.html:9
+msgid "Read the Docs"
+msgstr "اقرأ التعليمات"
+
+#: templates/base.html:61
+msgid ""
+"Your docs are currently being built.  It may take a moment for them to "
+"appear."
+msgstr ""
+
+#: templates/base.html:62
+msgid "Read the Docs thanks you for your continued patience."
+msgstr "اقرأ التعليمات , شكرا لك على صبرك المستمر"
+
+#: templates/base.html:84
+#, python-format
+msgid ""
+"Copyright 2010-2013. Created by %(eric)s, %(charles)s, and %(bobby)s for the "
+"2010 %(djangodash)s."
+msgstr ""
+
+#: templates/base.html:86
+msgid "Docs"
+msgstr ""
+
+#: templates/base.html:88
+msgid ""
+"Made by <a href=\"https://github.com/rtfd/readthedocs.org/graphs/contributors"
+"\">humans</a>. Funded by <a href=\"https://www.gittip.com/readthedocs/"
+"\">readers like you</a>."
+msgstr ""
+
+#: templates/base_filter.html:14 templates/core/filter_bar.html:8
+msgid "Filter"
+msgstr ""
+
+#: templates/donate.html:3 templates/core/header.html:50
+msgid "Donate"
+msgstr ""
+
+#: templates/donate.html:9
+msgid ""
+"Read the Docs is funded through donations from our users. You can donate "
+"money a couple of ways:"
+msgstr ""
+
+#: templates/donate.html:14
+msgid "Credit Card"
+msgstr ""
+
+#: templates/donate.html:20
+msgid ""
+"\n"
+"You can read more about the ongoing efforts to improve the documentation "
+"ecosystem here:\n"
+msgstr ""
+
+#: templates/error_header.html:22 templates/core/header.html:19
+msgid "Go"
+msgstr "أذهب"
+
+#: templates/error_header.html:32 templates/core/header.html:46
+msgid "Log Out"
+msgstr "تسجيل الخروج"
+
+#: templates/error_header.html:36 templates/core/header.html:48
+#: templates/core/home-header.html:19
+msgid "Log in"
+msgstr "تسجيل الدخول"
+
+#: templates/filter.html:26
+msgid "Filtered Results"
+msgstr ""
+
+#: templates/homepage.html:7
+msgid "Home"
+msgstr "الصفحة الرئيسية"
+
+#: templates/homepage.html:44
+msgid "What is this place?"
+msgstr ""
+
+#: templates/homepage.html:46
+msgid ""
+"Read the Docs hosts documentation, making it fully searchable and easy to "
+"find.\n"
+"You can import your docs using any major version control system, including "
+"Mercurial, Git, Subversion, and Bazaar.\n"
+"We support <a href=\"http://read-the-docs.readthedocs.org/en/latest/webhooks."
+"html\">webhooks</a> so your docs get built when you commit code.\n"
+"There's also support for versioning so you can build docs from tags and "
+"branches of your code in your repository. A <a href=\"http://read-the-docs."
+"readthedocs.org/en/latest/features.html\">full list of features</a> is "
+"available."
+msgstr ""
+
+#: templates/homepage.html:52
+#, python-format
+msgid ""
+"It's free and simple.  Read the <a href=\"%(getting_started_url)s\">Getting "
+"Started</a> guide to get going!"
+msgstr ""
+
+#: templates/homepage.html:68
+msgid "Featured Projects"
+msgstr ""
+
+#: templates/homepage.html:89
+msgid "Recently Updated Projects"
+msgstr ""
+
+#: templates/homepage.html:89
+msgid "(All Projects)"
+msgstr ""
+
+#: templates/post_commit.html:5
+msgid "Build Started"
+msgstr ""
+
+#: templates/post_commit.html:10
+#, python-format
+msgid "%(project)s is now building."
+msgstr ""
+
+#. Translators: 'it' refers the current project being built.
+#: templates/post_commit.html:12
+#, python-format
+msgid "Check it out <a href=\"%(project_url)s\">over here</a>."
+msgstr ""
+
+#: templates/post_commit.html:14
+msgid ""
+"This is a post-commit hook. Set it up in your project admin to POST here, "
+"for us to update your doc changes automatically."
+msgstr ""
+
+#: templates/account/login.html:7 templates/account/login.html.py:11
+#: templates/account/login.html:22
+#, fuzzy
+msgid "Sign In"
+msgstr "التسجيل"
+
+#: templates/account/login.html:13
+#, python-format
+msgid ""
+"If you have not created an account yet, then please\n"
+"<a href=\"%(signup_url)s\">sign up</a> first."
+msgstr ""
+
+#: templates/account/login.html:23
+msgid ""
+"If you forgot your password, <a href=\"/accounts/password/reset/\">reset it."
+"</a>"
+msgstr ""
+
+#: templates/account/password_change.html:6
+#: templates/account/password_change.html:15
+#: templates/account/password_change.html:20
+#: templates/dashboard/dashboard_bar.html:36
+msgid "Change Password"
+msgstr "تغير كلمة المرور"
+
+#: templates/archive/index.html:5
+msgid "Read the Docs Archive"
+msgstr ""
+
+#: templates/bookmarks/bookmark_list.html:7
+msgid "Bookmarks"
+msgstr ""
+
+#: templates/bookmarks/bookmark_list.html:20
+msgid "Recent Bookmarks"
+msgstr ""
+
+#: templates/builds/build_detail.html:14
+#, python-format
+msgid "Build for %(project_name)s"
+msgstr ""
+
+#: templates/builds/build_detail.html:18
+#, python-format
+msgid "Built: %(build_date)s"
+msgstr ""
+
+#: templates/builds/build_detail.html:20
+msgid "State:"
+msgstr "الوضعية:"
+
+#: templates/builds/build_detail.html:24
+msgid "Outcome:"
+msgstr ""
+
+#: templates/builds/build_detail.html:27
+msgid "Not yet finished"
+msgstr ""
+
+#: templates/builds/build_detail.html:27
+#: templates/core/build_list_detailed.html:6
+msgid "Passed"
+msgstr "تخطى بنجاح"
+
+#: templates/builds/build_detail.html:27
+#: templates/core/build_list_detailed.html:6
+msgid "Failed"
+msgstr "فشل"
+
+#: templates/builds/build_detail.html:27
+msgid "Status Code:"
+msgstr ""
+
+#: templates/builds/build_detail.html:33
+msgid "Version:"
+msgstr ""
+
+#: templates/builds/build_detail.html:36
+msgid "Type:"
+msgstr "النوع:"
+
+#: templates/builds/build_detail.html:42
+msgid "Build Standard Output"
+msgstr ""
+
+#: templates/builds/build_detail.html:46
+msgid "Build Standard Error"
+msgstr ""
+
+#: templates/builds/build_detail.html:51
+msgid "Setup Output"
+msgstr ""
+
+#: templates/builds/build_detail.html:56
+msgid "Environment Standard Error"
+msgstr ""
+
+#: templates/builds/build_list.html:37
+msgid "Build Version:"
+msgstr ""
+
+#: templates/builds/build_list.html:49
+msgid "Recent Builds"
+msgstr ""
+
+#: templates/builds/tag_list.html:5 templates/projects/tag_list.html:4
+#: templates/projects/tag_list.html.py:7
+msgid "Popular tags"
+msgstr ""
+
+#: templates/core/build_list_detailed.html:8
+#, python-format
+msgid "version %(slug)s (%(type)s)"
+msgstr ""
+
+#: templates/core/build_list_detailed.html:8
+#: templates/core/project_list_detailed.html:27
+#, python-format
+msgid "%(date)s ago"
+msgstr ""
+
+#: templates/core/build_list_detailed.html:13
+msgid "No builds found"
+msgstr ""
+
+#: templates/core/filter_list.html:12
+msgid "No objects found"
+msgstr ""
+
+#: templates/core/header.html:45
+msgid "Dashboard"
+msgstr ""
+
+#: templates/core/home-header.html:10
+msgid "Create, host, and browse documentation."
+msgstr ""
+
+#. Translators: Note, the full sentence goes 'Sign up' 'or' 'Log in'. But unfortunately the three bits have to be separate.
+#: templates/core/home-header.html:17
+msgid "Sign up"
+msgstr "التسجيل"
+
+#. Translators: The 'or' here is in between 'Submit' and 'delete'.
+#: templates/core/home-header.html:19 templates/projects/project_edit.html:39
+msgid "or"
+msgstr "أو"
+
+#: templates/core/project_bar.html:17
+#, python-format
+msgid "Build failed (<a href=\"%(url)s\">why</a>)"
+msgstr ""
+
+#: templates/core/project_bar.html:20
+msgid "There are no builds for this project"
+msgstr ""
+
+#: templates/core/project_bar.html:20
+msgid "Is the repo correct?"
+msgstr ""
+
+#: templates/core/project_bar.html:24
+msgid "Overview"
+msgstr ""
+
+#: templates/core/project_bar.html:26
+#: templates/core/project_list_detailed.html:35
+#: templates/core/project_list_featured.html:13
+#: templates/projects/project_dashboard.html:72
+msgid "View Docs"
+msgstr ""
+
+#: templates/core/project_bar.html:29
+#: templates/projects/project_downloads.html:22
+msgid "Downloads"
+msgstr ""
+
+#: templates/core/project_bar.html:31 templates/core/project_details.html:13
+#: templates/core/project_list_detailed.html:39
+#: templates/core/project_list_featured.html:17
+#: templates/sphinx/sphinx_rtd_theme/layout.html:55
+#: templates/sphinx/sphinx_rtd_theme/layout_old.html:137
+#: templates/sphinx/sphinx_rtd_theme/search.html:11
+msgid "Search"
+msgstr ""
+
+#: templates/core/project_bar.html:34
+msgid "Builds"
+msgstr "البناء"
+
+#: templates/core/project_bar.html:38
+#: templates/projects/project_dashboard.html:70
+msgid "Admin"
+msgstr ""
+
+#: templates/core/project_details.html:11
+#, python-format
+msgid "Search %(project)s"
+msgstr ""
+
+#: templates/core/project_details.html:22
+#: templates/projects/project_edit_base.html:19
+#: templates/projects/project_versions.html:9
+#: templates/projects/upload_html.html:7
+msgid "Versions"
+msgstr "الإصدارات"
+
+#: templates/core/project_details.html:44
+#, python-format
+msgid " %(slug)s "
+msgstr ""
+
+#: templates/core/project_details.html:51
+#, python-format
+msgid " %(slug)s (Build Failed)"
+msgstr ""
+
+#: templates/core/project_details.html:56
+#: templates/profiles/profile_detail.html:38
+#: templates/profiles/profile_detail.html:69
+msgid "Edit"
+msgstr "تعديل"
+
+#: templates/core/project_details.html:66
+msgid "Build a version"
+msgstr ""
+
+#: templates/core/project_details.html:74
+msgid "Build"
+msgstr ""
+
+#: templates/core/project_details.html:96
+msgid "Repository"
+msgstr "مستودع"
+
+#: templates/core/project_details.html:100
+msgid "Badge"
+msgstr ""
+
+#: templates/core/project_details.html:106
+msgid "Owners"
+msgstr ""
+
+#: templates/core/project_details.html:114
+msgid "Tags"
+msgstr "أوسمة"
+
+#: templates/core/project_details.html:119
+msgid "No tags"
+msgstr "لا أوسمة"
+
+#: templates/core/project_details.html:124
+msgid "Last Built"
+msgstr "آخر بناء"
+
+#: templates/core/project_details.html:128
+msgid "Home Page"
+msgstr ""
+
+#: templates/core/project_details.html:134
+msgid "Project Privacy Level"
+msgstr ""
+
+#: templates/core/project_details.html:141
+msgid "Short URLs"
+msgstr "العناوين القصيرة"
+
+#: templates/core/project_details.html:150
+msgid "Open Comparison"
+msgstr "مقارنة مفتوحة"
+
+#: templates/core/project_details.html:151
+#, python-format
+msgid ""
+"This project has more information available about it on <a href=\"%(url)s"
+"\">Open Comparison!</a>"
+msgstr ""
+
+#: templates/core/project_details.html:155
+#: templates/projects/project_edit_base.html:22
+#: templates/projects/project_translations.html:12
+msgid "Translations"
+msgstr ""
+
+#: templates/core/project_details.html:164
+msgid "Sub Projects"
+msgstr ""
+
+#: templates/core/project_details.html:175
+msgid "'latest' Version"
+msgstr ""
+
+#: templates/core/project_details.html:179
+msgid "Post Commit Hook"
+msgstr ""
+
+#: templates/core/project_details.html:192
+msgid "Most viewed pages for this project"
+msgstr ""
+
+#: templates/core/project_downloads.html:7
+#, python-format
+msgid ""
+"\n"
+"        %(version)s PDF\n"
+"      "
+msgstr ""
+
+#: templates/core/project_downloads.html:17
+#, python-format
+msgid ""
+"\n"
+"        %(version)s HTMLZip\n"
+"      "
+msgstr ""
+
+#: templates/core/project_downloads.html:27
+#, python-format
+msgid ""
+"\n"
+"        %(version)s Epub\n"
+"      "
+msgstr ""
+
+#: templates/core/project_downloads.html:36
+msgid "No downloads for this project."
+msgstr ""
+
+#: templates/core/project_list_detailed.html:29
+#, fuzzy
+msgid "No builds"
+msgstr "البناء"
+
+#: templates/core/project_list_detailed.html:47
+#: templates/core/project_list_featured.html:25
+msgid "No Docs"
+msgstr "لا ملفات تعليمات"
+
+#: templates/core/project_list_detailed.html:54
+#: templates/core/project_list_featured.html:32
+msgid "No projects found"
+msgstr ""
+
+#: templates/core/version_list.html:12
+msgid "Add tags"
+msgstr ""
+
+#: templates/core/widesearchbar.html:4
+msgid "Search all the docs."
+msgstr "البحث في جميع التعليمات"
+
+#. Translators: This is about starting a search
+#: templates/core/widesearchbar.html:16
+msgid "Let's do this."
+msgstr "لنعمل على هذا"
+
+#: templates/dashboard/dashboard_bar.html:8
+#: templates/projects/project_list.html:17
+#: templates/projects/project_list.html:35
+msgid "Projects"
+msgstr "مشاريع"
+
+#: templates/dashboard/dashboard_bar.html:16
+msgid "Import"
+msgstr "إستيراد"
+
+#: templates/dashboard/dashboard_bar.html:17
+msgid "GitHub"
+msgstr ""
+
+#: templates/dashboard/dashboard_bar.html:23
+msgid "Profile"
+msgstr ""
+
+#: templates/dashboard/dashboard_bar.html:27
+msgid "Create Profile"
+msgstr "إنشاء ملف تعريف"
+
+#: templates/dashboard/dashboard_bar.html:32
+msgid "Social Accounts"
+msgstr ""
+
+#: templates/djangome/choices.html:4
+#, python-format
+msgid "Choose a redirect for \"%(djangome_term)s\""
+msgstr ""
+
+#: templates/djangome/choices.html:7
+#, python-format
+msgid ""
+"Choose a redirect for <kbd>%(djangome_term)s on <a href=\"http://%(slug)s."
+"readthedocs.org\">%(slug)s.readthedocs.org</a></kbd>"
+msgstr ""
+
+#: templates/djangome/choices.html:28
+msgid "Save &amp; go &rarr;"
+msgstr "حفظ &amp; المتابعة &rarr;"
+
+#: templates/djangome/oneoffs.html:4
+msgid "One-offs"
+msgstr ""
+
+#: templates/djangome/oneoffs.html:12
+msgid "Term"
+msgstr ""
+
+#: templates/djangome/oneoffs.html:13
+msgid "Target"
+msgstr "الهدف"
+
+#: templates/djangome/oneoffs.html:27
+msgid "kill"
+msgstr "قتل"
+
+#: templates/djangome/oneoffs.html:37
+msgid "add"
+msgstr "أضف"
+
+#: templates/djangome/show.html:4
+#, python-format
+msgid "Statistics for %(term)s"
+msgstr ""
+
+#: templates/djangome/show.html:5
+#, python-format
+msgid "Statistics for <kbd>%(term)s</kbd>:"
+msgstr ""
+
+#: templates/djangome/show.html:13
+msgid "Clicks"
+msgstr "نقرات"
+
+#: templates/djangome/show.html:39
+msgid "Add"
+msgstr "أضف"
+
+#: templates/flagging/flag_confirm.html:6
+#: templates/flagging/flag_confirm.html:11
+msgid "Confirm flagging"
+msgstr ""
+
+#: templates/flagging/flag_confirm.html:17
+msgid "What you are saying:"
+msgstr "الذي تقوله:"
+
+#: templates/flagging/flag_confirm.html:21
+#, python-format
+msgid ""
+"Are you sure you want to flag \"%(object)s\" as \"%(flag_type.title)s\"?"
+msgstr ""
+
+#: templates/flagging/flag_confirm.html:23
+#, python-format
+msgid "Yes, this is %(title)s"
+msgstr ""
+
+#: templates/flagging/flag_confirm.html:24
+msgid "cancel"
+msgstr "إلغاء"
+
+#: templates/flagging/flag_success.html:6
+#: templates/flagging/flag_success.html:11
+msgid "Flagging successful"
+msgstr ""
+
+#: templates/flagging/flag_success.html:16
+#, python-format
+msgid "You have successfully flagged \"%(object)s\" as \"%(flag_type.title)s\""
+msgstr ""
+
+#: templates/flagging/flag_success.html:18
+msgid "Thank you for contributing to the quality of this site!"
+msgstr "شكرا لك على المساهمة في جودة هذا الموقع!"
+
+#: templates/pagination/pagination.html:6
+#: templates/pagination/pagination.html:8
+msgid "previous"
+msgstr "السابق"
+
+#: templates/pagination/pagination.html:22
+#: templates/pagination/pagination.html:24
+msgid "next"
+msgstr "التالي"
+
+#: templates/profiles/create_profile.html:5
+#: templates/profiles/create_profile.html:10
+msgid "Create your profile"
+msgstr "إنشاء ملفك الشخصي"
+
+#: templates/profiles/create_profile.html:16
+msgid "Create it!"
+msgstr "أنشئ ذلك!"
+
+#: templates/profiles/edit_profile.html:5
+#: templates/profiles/edit_profile.html:15
+msgid "Edit your profile"
+msgstr "تعديل ملفك الشخصي"
+
+#: templates/profiles/edit_profile.html:21
+msgid "OK, save it!"
+msgstr "حسنا, أحفظه!"
+
+#: templates/profiles/profile_detail.html:6
+#, python-format
+msgid "%(user)s's profile"
+msgstr ""
+
+#: templates/profiles/profile_detail.html:45
+msgid "Add Your Name"
+msgstr ""
+
+#: templates/profiles/profile_detail.html:77
+msgid "Add a Homepage"
+msgstr ""
+
+#: templates/profiles/profile_detail.html:86
+msgid "Press enter to save your changes, or escape to discard them"
+msgstr ""
+
+#: templates/profiles/profile_list.html:5
+#: templates/profiles/profile_list.html:8
+msgid "User profiles"
+msgstr "الملفات الشخصية للمستخدمين"
+
+#: templates/projects/alias_edit.html:4 templates/projects/alias_edit.html:7
+msgid "Project Alias"
+msgstr "كنية المشروع"
+
+#: templates/projects/alias_edit.html:12
+msgid "Add an alias for a project version."
+msgstr "أضف كنية لإصدار المشروع"
+
+#: templates/projects/alias_edit.html:16
+#: templates/projects/project_create.html:42
+#: templates/projects/project_import.html:34
+#: templates/projects/project_import.html:40
+msgid "Create"
+msgstr "إنشاء"
+
+#: templates/projects/alias_list.html:6 templates/projects/alias_list.html:11
+msgid "Aliases"
+msgstr "أسماء كنية"
+
+#: templates/projects/alias_list.html:20
+#: templates/projects/project_list.html:48
+msgid "Browse projects"
+msgstr "تصفّح المشاريع"
+
+#: templates/projects/legend.html:4
+msgid "External Links"
+msgstr "روابط خارجية"
+
+#: templates/projects/legend.html:5
+msgid "Link text"
+msgstr "نص الرابط"
+
+#: templates/projects/legend.html:7
+msgid "Internal Links"
+msgstr "روابط داخلية"
+
+#: templates/projects/legend.html:10
+msgid "Bold"
+msgstr ""
+
+#: templates/projects/legend.html:11
+msgid "text to bold"
+msgstr ""
+
+#: templates/projects/legend.html:13
+msgid "Emphasized"
+msgstr ""
+
+#: templates/projects/legend.html:14
+msgid "text to emphasize"
+msgstr ""
+
+#: templates/projects/legend.html:16
+msgid "Lists"
+msgstr ""
+
+#: templates/projects/legend.html:19 templates/projects/legend.html.py:20
+#: templates/projects/legend.html:23 templates/projects/legend.html.py:24
+msgid "Item"
+msgstr ""
+
+#: templates/projects/legend.html:28
+msgid "Source Code"
+msgstr ""
+
+#: templates/projects/legend.html:30
+msgid "e.g. Check out this code"
+msgstr ""
+
+#: templates/projects/legend.html:31
+msgid "actual code indented"
+msgstr ""
+
+#: templates/projects/legend.html:34
+msgid "reStructuredText Primer"
+msgstr ""
+
+#: templates/projects/project_advanced.html:23
+msgid "Edit Advanced Project Settings"
+msgstr ""
+
+#: templates/projects/project_advanced.html:28
+#: templates/projects/project_edit_base.html:18
+msgid "Advanced Settings"
+msgstr ""
+
+#: templates/projects/project_advanced.html:34
+#: templates/projects/project_edit.html:37
+#: templates/projects/project_notifications.html:69
+#: templates/projects/project_notifications.html:80
+#: templates/projects/project_redirects.html:95
+#: templates/projects/project_subprojects.html:37
+#: templates/projects/project_translations.html:36
+#: templates/projects/project_users.html:51
+#: templates/projects/project_versions.html:53
+msgid "Submit"
+msgstr "أرسل"
+
+#: templates/projects/project_create.html:29
+msgid "Create a new project"
+msgstr ""
+
+#: templates/projects/project_create.html:32
+msgid "Create a New Project"
+msgstr ""
+
+#: templates/projects/project_create.html:37
+msgid ""
+"Create new documentation here. If you already have docs in a public "
+"repository,"
+msgstr ""
+
+#: templates/projects/project_create.html:38
+msgid "import an existing project"
+msgstr ""
+
+#: templates/projects/project_dashboard.html:5
+msgid "Project Dashboard"
+msgstr ""
+
+#: templates/projects/project_dashboard.html:23
+#, python-format
+msgid ""
+"\n"
+"              Check out the <a href=\"%(url)s\">documentation for Read the "
+"Docs</a>. It contains lots of information about how to get the most out of "
+"RTD.\n"
+"              "
+msgstr ""
+
+#: templates/projects/project_dashboard.html:31
+msgid "Important Versions"
+msgstr ""
+
+#: templates/projects/project_dashboard.html:59
+msgid "My Projects"
+msgstr ""
+
+#: templates/projects/project_dashboard.html:87
+#, python-format
+msgid ""
+"\n"
+"          You don't have any projects. You can <a href="
+"\"%(projects_import_url)s\">create new docs</a> on the site.\n"
+"          <br>\n"
+"          If you have a GitHub account, you can <a href=\"%(social_accounts)s"
+"\">connect it</a> and import projects from there.\n"
+"          <br>\n"
+"          Check out the <a href=\"%(getting_started_url)s\">Getting Started</"
+"a> documentation for information about how to get going.\n"
+"          </p> \n"
+"          "
+msgstr ""
+
+#: templates/projects/project_delete.html:4
+#: templates/projects/project_delete.html:6
+#, python-format
+msgid "Delete %(name)s?"
+msgstr ""
+
+#: templates/projects/project_delete.html:9
+msgid "You sure?"
+msgstr "هل أنت متأكد؟"
+
+#: templates/projects/project_delete.html:12
+msgid "Delete forever"
+msgstr ""
+
+#: templates/projects/project_edit.html:23
+msgid "Edit Project"
+msgstr ""
+
+#: templates/projects/project_edit.html:28
+#: templates/projects/project_edit_base.html:17
+msgid "Settings"
+msgstr ""
+
+#: templates/projects/project_edit.html:40
+msgid "delete"
+msgstr ""
+
+#: templates/projects/project_edit_base.html:20
+#: templates/projects/project_users.html:8
+msgid "Maintainers"
+msgstr ""
+
+#: templates/projects/project_edit_base.html:21
+#: templates/projects/project_redirects.html:8
+msgid "Redirects"
+msgstr ""
+
+#: templates/projects/project_edit_base.html:23
+#: templates/projects/project_subprojects.html:12
+msgid "Subprojects"
+msgstr "مشاريع فرعية"
+
+#: templates/projects/project_edit_base.html:24
+#: templates/projects/project_notifications.html:12
+msgid "Notifications"
+msgstr ""
+
+#: templates/projects/project_import.html:4
+#: templates/projects/project_import.html:28
+msgid "Import an existing project"
+msgstr ""
+
+#: templates/projects/project_import.html:37
+msgid ""
+"You can change how your project is built in your <em>Advanced Settings</em> "
+"once your project has been created."
+msgstr ""
+
+#: templates/projects/project_import_github.html:4
+#: templates/projects/project_import_github.html:28
+msgid "Import a GitHub project"
+msgstr ""
+
+#: templates/projects/project_import_github.html:35
+#, python-format
+msgid ""
+"Showing your GitHub projects. <a href=\"%(sync_github_url)s\">Sync your "
+"GitHub projects</a> to update them."
+msgstr ""
+
+#: templates/projects/project_import_github.html:39
+msgid "GitHub projects are now up to date."
+msgstr ""
+
+#: templates/projects/project_import_github.html:93
+#, python-format
+msgid ""
+"You don't have any GitHub repositories connected. \n"
+"  Go to your <a href=\"%(social_url)s\">Social Accounts</a> to set one up.\n"
+"  "
+msgstr ""
+
+#: templates/projects/project_list.html:9
+#: templates/projects/project_list.html:27
+#, python-format
+msgid "Projects by %(username)s tagged with %(tag)s"
+msgstr ""
+
+#: templates/projects/project_list.html:11
+#: templates/projects/project_list.html:29
+#, python-format
+msgid "Projects by %(username)s"
+msgstr ""
+
+#: templates/projects/project_list.html:15
+#: templates/projects/project_list.html:33
+#, python-format
+msgid "Projects tagged with %(tag)s"
+msgstr ""
+
+#: templates/projects/project_notifications.html:5
+msgid "Edit Notifications"
+msgstr ""
+
+#: templates/projects/project_notifications.html:16
+msgid "Configure Notifications to be sent on build failures."
+msgstr ""
+
+#: templates/projects/project_notifications.html:20
+msgid "Existing Notifications"
+msgstr ""
+
+#: templates/projects/project_notifications.html:44
+msgid "Remove Notifications"
+msgstr ""
+
+#: templates/projects/project_notifications.html:56
+#: templates/projects/project_subprojects.html:27
+#: templates/projects/project_translations.html:26
+#: templates/socialaccount/connections.html:42
+msgid "Remove"
+msgstr ""
+
+#: templates/projects/project_notifications.html:62
+msgid "New Email Notifications"
+msgstr ""
+
+#: templates/projects/project_notifications.html:64
+msgid "Add an email address to notify"
+msgstr ""
+
+#: templates/projects/project_notifications.html:73
+msgid "New Webhook Notifications"
+msgstr ""
+
+#: templates/projects/project_notifications.html:75
+msgid "Add a URL to notify"
+msgstr ""
+
+#: templates/projects/project_redirects.html:5
+msgid "Edit Redirects"
+msgstr ""
+
+#: templates/projects/project_redirects.html:39
+msgid ""
+"Add redirects for your project. This allows you to fix links to old pages "
+"that are 404ing."
+msgstr ""
+
+#: templates/projects/project_redirects.html:43
+msgid "Existing Redirects"
+msgstr ""
+
+#: templates/projects/project_redirects.html:56
+msgid "Remove Redirect"
+msgstr ""
+
+#: templates/projects/project_redirects.html:70
+msgid "Add Redirect"
+msgstr ""
+
+#: templates/projects/project_redirects.html:72
+msgid ""
+"Add new redirects. These will only happen on <b>404 Page Not Found</b> "
+"requests."
+msgstr ""
+
+#: templates/projects/project_redirects.html:75
+msgid ""
+"This is mainly used to support migration from old doc systems. If you used "
+"to serve your docs at <b>/docs/</b>, you will do:"
+msgstr ""
+
+#: templates/projects/project_redirects.html:83
+msgid "You can also redirect a specific page, like so:"
+msgstr ""
+
+#: templates/projects/project_subprojects.html:5
+msgid "Edit Subprojects"
+msgstr ""
+
+#: templates/projects/project_subprojects.html:16
+msgid ""
+"This allows you to add subprojects to your project. This allows them to live "
+"in the same namespace in the URLConf for a subdomain or CNAME."
+msgstr ""
+
+#: templates/projects/project_subprojects.html:19
+msgid "Existing Subprojects"
+msgstr ""
+
+#: templates/projects/project_subprojects.html:32
+msgid "Choose which project you would like to add as a subproject."
+msgstr ""
+
+#: templates/projects/project_translations.html:5
+msgid "Edit Translations"
+msgstr ""
+
+#: templates/projects/project_translations.html:16
+msgid ""
+"This allows you to add translations to your project. Select the project "
+"below that is a translation of your current project."
+msgstr ""
+
+#: templates/projects/project_translations.html:19
+msgid "Existing Translations"
+msgstr ""
+
+#: templates/projects/project_translations.html:31
+msgid "Choose which project you would like to add as a translation."
+msgstr ""
+
+#: templates/projects/project_users.html:5
+msgid "Edit Maintainers"
+msgstr ""
+
+#: templates/projects/project_users.html:12
+msgid ""
+"This allows you to add maintainers to your project. It gives them admin "
+"access to the project, so be careful!"
+msgstr ""
+
+#: templates/projects/project_users.html:15
+msgid "Existing Maintainers"
+msgstr ""
+
+#: templates/projects/project_users.html:28
+msgid "Remove Maintainer"
+msgstr ""
+
+#: templates/projects/project_users.html:44
+msgid "Add Maintainer"
+msgstr ""
+
+#: templates/projects/project_users.html:46
+msgid "Choose which user you would like to add."
+msgstr ""
+
+#: templates/projects/project_version_detail.html:14
+#, python-format
+msgid "%(version_name)s"
+msgstr ""
+
+#: templates/projects/project_versions.html:4
+msgid "Edit Project Versions"
+msgstr ""
+
+#: templates/projects/project_versions.html:21
+msgid "Choose the version that / will redirect to."
+msgstr ""
+
+#: templates/projects/project_versions.html:27
+msgid "Choose Active Versions"
+msgstr ""
+
+#: templates/projects/project_versions.html:29
+msgid "Active versions below will show up on the site."
+msgstr ""
+
+#: templates/projects/search.html:6 templates/projects/search.html.py:20
+#, python-format
+msgid "Search results for %(term)s"
+msgstr ""
+
+#: templates/projects/search.html:37
+msgid "Huh?"
+msgstr ""
+
+#: templates/projects/search.html:38
+msgid "No docs matched your search. ¯\\(O_o)/¯"
+msgstr ""
+
+#: templates/projects/upload_html.html:4
+msgid "Import HTML Documentation"
+msgstr ""
+
+#: templates/projects/upload_html.html:7
+msgid "Upload HTML"
+msgstr ""
+
+#: templates/projects/upload_html.html:11
+msgid ""
+"Use this to upload pre-existing HTML documentation for versions that don't "
+"build correctly anymore."
+msgstr ""
+
+#: templates/projects/upload_html.html:15
+msgid "Upload"
+msgstr ""
+
+#. Translators: After 'Flag this project as' follows either 'Inappropriate', 'Spam' and/or 'Duplicate'
+#: templates/projects/includes/flagging.html:7
+msgid "Flag this project as"
+msgstr ""
+
+#: templates/projects/includes/flagging.html:8
+msgid "Inappropriate"
+msgstr ""
+
+#: templates/projects/includes/flagging.html:9
+msgid "Spam"
+msgstr ""
+
+#: templates/projects/includes/flagging.html:10
+msgid "Duplicate"
+msgstr ""
+
+#: templates/projects/includes/icon_built.html:9
+msgid "Not built"
+msgstr ""
+
+#: templates/projects/samples/getting_started.rst.html:3
+msgid "Here's a place to describe how to get up and running with your project"
+msgstr ""
+
+#: templates/projects/samples/installation.rst.html:3
+#, python-format
+msgid "Here is where you can describe how to install %(name)s"
+msgstr ""
+
+#: templates/search/base_facet.html:5 templates/search/search.html:5
+#, python-format
+msgid "Search: %(query)s"
+msgstr ""
+
+#. Translators: This is about starting a search
+#. Translators: This is about starting a search
+#: templates/search/base_facet.html:27
+#: templates/search/elastic_project_search.html:51
+#: templates/search/search.html:17
+msgid "Go crazy."
+msgstr ""
+
+#: templates/search/base_search.html:9
+#: templates/search/faceted_results.html:49
+msgid "Project:"
+msgstr ""
+
+#: templates/search/base_search.html:14
+msgid "File:"
+msgstr ""
+
+#: templates/search/base_search.html:24
+#: templates/search/elastic_project_search.html:82
+#: templates/search/faceted_results.html:63
+msgid "No results found. Bummer."
+msgstr ""
+
+#: templates/search/elastic_project_search.html:5
+#, python-format
+msgid "Search: %(query)s "
+msgstr ""
+
+#: templates/search/elastic_project_search.html:65
+#: templates/search/search.html:31
+#, python-format
+msgid "Results for %(query)s"
+msgstr ""
+
+#: templates/search/elastic_project_search.html:98
+#: templates/search/elastic_project_search.html:100
+#: templates/search/search.html:52 templates/search/search.html.py:54
+msgid "Previous"
+msgstr ""
+
+#: templates/search/elastic_project_search.html:104
+#: templates/search/elastic_project_search.html:106
+#: templates/search/search.html:58 templates/search/search.html.py:60
+msgid "Next"
+msgstr ""
+
+#: templates/search/faceted_author.html:8
+msgid "By Author"
+msgstr ""
+
+#: templates/search/faceted_author.html:13
+msgid "Author"
+msgstr ""
+
+#: templates/search/faceted_author.html:21
+msgid "No author facets."
+msgstr ""
+
+#: templates/search/faceted_results.html:7
+#, python-format
+msgid "%(count)s Results for %(query)s"
+msgstr ""
+
+#: templates/search/faceted_results.html:7
+msgid "No search term entered"
+msgstr ""
+
+#. Translators: The refers to filtering a search by using facets
+#: templates/search/faceted_results.html:15
+msgid "Filtered by"
+msgstr ""
+
+#: templates/search/faceted_results.html:18
+msgid "remove"
+msgstr ""
+
+#: templates/search/faceted_results.html:21
+msgid "Filter by Project"
+msgstr ""
+
+#: templates/search/faceted_results.html:32
+msgid "No project facets."
+msgstr ""
+
+#: templates/search/faceted_results.html:54
+msgid "File"
+msgstr ""
+
+#: templates/socialaccount/connections.html:6
+#: templates/socialaccount/connections.html:15
+msgid "Account Connections"
+msgstr ""
+
+#: templates/socialaccount/connections.html:18
+msgid ""
+"You can sign in to your account using any of the following third party "
+"accounts:"
+msgstr ""
+
+#: templates/socialaccount/connections.html:50
+msgid ""
+"You currently have no social network accounts connected to this account."
+msgstr ""
+
+#: templates/socialaccount/connections.html:53
+msgid "Add a 3rd Party Account"
+msgstr ""
+
+#: templates/sphinx/sphinx_rtd_theme/layout.html:47
+#: templates/sphinx/sphinx_rtd_theme/layout_old.html:131
+msgid "About these documents"
+msgstr ""
+
+#: templates/sphinx/sphinx_rtd_theme/layout.html:51
+#: templates/sphinx/sphinx_rtd_theme/layout_old.html:134
+msgid "Index"
+msgstr ""
+
+#: templates/sphinx/sphinx_rtd_theme/layout_old.html:29
+msgid "Navigation"
+msgstr ""
+
+#: templates/sphinx/sphinx_rtd_theme/search.html:33
+msgid "Search Results"
+msgstr ""
+
+#: templates/sphinx/sphinx_rtd_theme/search.html:35
+msgid ""
+"Your search did not match any documents. Please make sure that all words are "
+"spelled correctly and that you've selected enough categories."
+msgstr ""

@@ -52,10 +52,22 @@ PRODUCTION_DOMAIN = 'readthedocs.org'
 USE_SUBDOMAIN = True
 NGINX_X_ACCEL_REDIRECT = True
 
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTOCOL", "https")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Lock builds for 10 minutes
+REPO_LOCK_SECONDS = 300
+
+# Don't re-confirm existing accounts
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+
+FILE_SYNCER = 'privacy.backends.syncers.DoubleRemotePuller'
+
+# set GitHub scope
+SOCIALACCOUNT_PROVIDERS = {
+    'github': {'SCOPE': ['user:email', 'read:org', 'admin:repo_hook', 'repo:status']}
+}
 
 try:
     from local_settings import *  # noqa
-except:
+except ImportError:
     pass

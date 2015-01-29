@@ -1,28 +1,31 @@
 {% load i18n %}
-{% load markup %}
+{% load core_tags %}
+{% load privacy_tags %}
+{% load gravatar %}
+{% load projects_tags %}
 
-{% if project.description %}
-  <h3>{% trans "Description" %}</h3>
-  <div id="project_description">
-  <p>
-    {{ project.description|restructuredtext }}
-  </p>
-  </div>
-{% endif %}
+<div id="project_details">
+  <div class="wrapper">
 
 <!-- BEGIN search bar -->
 <div class="search">
-  <form action="{% url haystack_project %}" method="GET">
+  <form action="{% url "elastic_project_search" project.slug %}" method="GET">
     <input type="text" name="q" value="" placeholder="{% blocktrans %}Search {{ project }}{% endblocktrans %}" id="id_site_search">
     <input type="hidden" name="selected_facets" value="project_exact:{{ project.name }}">
     <input type="submit" value="{% trans "Search" %}">
   </form>
 </div>
-<br>
 <!-- END search bar -->
 
-{% if versions %}
 <div class="module">
+  {% if onboard %}
+  <!-- BEGIN onboard -->
+    {% include 'projects/onboard_detail.html' %}
+  <!-- END onboard -->
+  {% endif %}
+
+{% if versions %}
+
   <div class="module-header">
     <h3>{% trans "Versions" %}</h3>
   </div>
@@ -52,12 +55,12 @@
           </a>
         {% else %}
           <a class="module-item-title" href="{{ version.project.get_builds_url }}">
-            {% blocktrans with version.slug as slug %} {{ slug }} (Build Failed){% endblocktrans %}
+            {% blocktrans with version.slug as slug %} {{ slug }}{% endblocktrans %}
           </a>
         {% endif %}
-          {% if request.user in project.users.all %}
+          {% if request.user|is_admin:project %}
             <ul class="module-item-menu">
-              <li><a href="{% url project_version_detail project.slug version.slug %}">{% trans "Edit" %}</a></li>
+              <li><a href="{% url "project_version_detail" project.slug version.slug %}">{% trans "Edit" %}</a></li>
             </ul>
           {% endif %}
         </li>
@@ -68,10 +71,10 @@
 
   <div class="build_a_version">
     <h3>{% trans "Build a version" %}</h3>
-    <div style="float: left; margin-right: 5px;" class="version_right">
-      <form method="post" action="{% url generic_build project.pk %}">
+    <div class="version_right">
+      <form method="post" action="{% url "generic_build" project.pk %}">
         <select id="id_version" name="version_slug">
-        {% for version in project.ordered_active_versions %}
+        {% for version in filter|sort_version_aware %}
           <option value="{{ version.slug }}">{{ version.slug }}</option>
         {% endfor %}
         </select>
@@ -79,113 +82,24 @@
       </form>
     </div>
   </div>
-</div>{# END .module #}
 {% endif %}
+
+<div id="project_description">
+{% if project.description %}
+  <h3>{% trans "Description" %}</h3>
+  <div id="project_description">
+  <p>
+    {{ project.description|restructuredtext }}
+  </p>
+  </div>
+{% endif %}
+</div>
+
+</div>{# END .module #}
 
 <div class="project_details">
-
-  {% if project.repo %}
-    <h3>{% trans "Repository" %}</h3>
-    <p>{{ project.repo|urlize }}</p>
-  {% endif %}
-
-  {% if project.tags.count %}
-    <h3>{% trans "Tags" %}</h3>
-    <p>
-      {% for tag in project.tags.all %}
-        <a href="{% url projects_tag_detail tag.slug %}">{{ tag.name }}</a>{% if forloop.last %}{% else %}, {% endif %}
-      {% empty %}
-        <span class="quiet">{% trans "No tags" %}</span>
-      {% endfor %}
-    </p>
-  {% endif %}
-
-  <h3>{% trans "Last Built" %}</h3>
-  <p>{{ project.modified_date|timesince }} ago</p>
-
-  {% if project.project_url %}
-    <h3>{% trans "Home Page" %}</h3>
-    <p>
-      <a href="{{ project.project_url }}" rel="nofollow,noindex">{{ project.project_url }}</a>
-    </p>
-  {% endif %}
-
-  <h3>{% trans "Project Privacy Level" %}</h3>
-  <div id="privacy_level">
-    <p>
-      {{ project.get_privacy_level_display }}
-    </p>
-  </div>
-
-  <h3>{% trans "Short URLs" %}</h3>
-  <p>
-    <a href="http://{{ project.slug}}.{{ PRODUCTION_DOMAIN }}">{{ project.slug }}.{{ PRODUCTION_DOMAIN }}</a><br>
-    {% if PRODUCTION_DOMAIN == "readthedocs.org" %}
-    <a href="http://{{ project.slug}}.rtfd.org">{{ project.slug }}.rtfd.org</a>
-    {% endif %}
-  </p>
-
-  {% if project.django_packages_url %}
-  <h3>{% trans "Open Comparison" %}</h3>
-  <p>{% blocktrans with project.django_packages_url as url %}This project has more information available about it on <a href="{{ url }}">Open Comparison!</a>{% endblocktrans %}</p>
-  {% endif %}
-
-  {% if project.crate_url %}
-  <h3>{% trans "Crate" %}</h3>
-  <p>{% blocktrans with project.crate_url as url %}This project has more information available about it on <a href="{{ url }}">Crate!</a>{% endblocktrans %}</p>
-  {% endif %}
-
-  {% if project.translations.exists %}
-    <h3>{% trans "Translations" %}</h3>
-      <ul>
-      {% for trans in project.translations.all %}
-          <li><a href="{{ trans.get_translation_url }}">{{ trans }}</a></li>
-      {% endfor %}
-      </ul>
-  {% endif %}
-
-  {% if project.subprojects.exists %}
-    <h3>{% trans "Sub Projects" %}</h3>
-      <ul>
-      {% for rel in project.subprojects.all %}
-          <li><a href="{{ rel.get_absolute_url }}">{{ rel.child }}</a></li>
-      {% endfor %}
-      </ul>
-  {% endif %}
-
-<h3>{% trans "Default Version" %}</h3>
-<p> {{ project.get_default_version }}</p>
-
-<h3>{% trans "'latest' Version" %}</h3>
-<p> {{ project.get_default_branch }}</p>
-
-{% if request.user in project.users.all %}
-  <h3>{% trans "Post Commit Hook" %}</h3>
-    <p>
-        curl -X POST http://{{ PRODUCTION_DOMAIN }}{% url generic_build project.slug %}
-    </p>
-
-{% endif %}
-
-  {% if pageview_list %}
-  <!-- BEGIN projects list -->
-  <div class="module">
-    <div class="module-wrapper">
-
-      <div class="module-header">
-        <h3>{% trans "Most viewed pages for this project" %}<span class="small_head"></span></h3>
-      </div>
-
-      <div class="module-list">
-        <div class="module-list-wrapper">
-          <ul>
-          {% include "core/pageview_list_detailed.html" %}
-          </ul>
-        </div>
-      </div>
-
-    </div>
-  </div>
-  <!-- END projects list -->
-  {% endif %}
+  {% include "core/project_detail_right.html" with badge_url=badge_url site_url=site_url %}
 </div>{# END .project_details #}
+
+  </div>
+</div>
