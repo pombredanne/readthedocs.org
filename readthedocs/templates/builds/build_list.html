@@ -30,6 +30,18 @@ Filters
 {% endcomment %}
 
 
+<!-- BEGIN queue depth warning -->
+{% if queue_length > 10 %}
+<div>
+  <p>
+  {% blocktrans with queue_length as queue_length %}
+    Whoa! The build queue is {{ queue_length }} tasks long, new builds may take a while.
+  {% endblocktrans %}
+  </p>
+</div>
+{% endif %}
+
+
 <div id="build_list">
 
         {% autopaginate filter 15 %}
@@ -38,6 +50,7 @@ Filters
         <div class="module">
           <div class="module-wrapper">
 
+            {% if versions %}
             <div class="module-header">
               <div style="float:right;">
                 <form method="post" action="{% url "generic_build" project.pk %}">
@@ -55,6 +68,8 @@ Filters
                   </form>
                 </div>
               </div>
+            {% endif %}
+
               <h1>{% trans "Recent Builds" %}</h1>
             </div>
 
@@ -76,6 +91,8 @@ Filters
 
 {% endblock %}
 
+{% comment %}
+
 {% block extra_scripts %}
 {{ block.super }}
   <script type="text/javascript" src="{{ MEDIA_URL }}javascript/build_updater.js"></script>
@@ -89,3 +106,5 @@ Filters
     });
   </script>
 {% endblock %}
+
+{% endcomment %}

@@ -2,10 +2,14 @@ from django.utils.importlib import import_module
 from django.conf import settings
 
 # Managers
-mkdocs = import_module(getattr(settings, 'MKDOCS_BACKEND', 'doc_builder.backends.mkdocs'))
-sphinx = import_module(getattr(settings, 'SPHINX_BACKEND', 'doc_builder.backends.sphinx'))
+mkdocs = import_module(
+    getattr(settings, 'MKDOCS_BACKEND',
+            'readthedocs.doc_builder.backends.mkdocs'))
+sphinx = import_module(
+    getattr(settings, 'SPHINX_BACKEND',
+            'readthedocs.doc_builder.backends.sphinx'))
 
-loading = {
+BUILDER_BY_NAME = {
     # Possible HTML Builders
     'sphinx': sphinx.HtmlBuilder,
     'sphinx_htmldir': sphinx.HtmlDirBuilder,
@@ -19,3 +23,7 @@ loading = {
     'mkdocs': mkdocs.MkdocsHTML,
     'mkdocs_json': mkdocs.MkdocsJSON,
 }
+
+
+def get_builder_class(name):
+    return BUILDER_BY_NAME[name]

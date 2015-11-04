@@ -5,8 +5,7 @@ from optparse import make_option
 from django.core.management.base import BaseCommand
 from django.db.models import Max
 
-from builds.models import Build, Version
-from builds.utils import clean_build_path
+from readthedocs.builds.models import Build, Version
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +45,6 @@ class Command(BaseCommand):
                 if latest_build.date > max_date:
                     log.warn('{0} is newer than {1}'.format(
                         latest_build, max_date))
-                    next
                 path = version.get_build_path()
                 if path is not None:
                     log.info(
@@ -54,6 +52,6 @@ class Command(BaseCommand):
                          'at {1}, last used on {2}').format(
                             version, path, latest_build.date))
                     if not options['dryrun']:
-                        clean_build_path(version)
+                        version.clean_build_path()
             except Version.DoesNotExist:
                 pass

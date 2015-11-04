@@ -1,18 +1,22 @@
-import re
-
+from django.contrib.auth.models import User
 from django.contrib.messages import constants as message_const
+from django_dynamic_fixture import get
+from django_dynamic_fixture import new
+from mock import patch
 
-from rtd_tests.base import WizardTestCase, MockBuildTestCase
-from projects.models import Project
+from readthedocs.rtd_tests.base import WizardTestCase, MockBuildTestCase
+from readthedocs.projects.models import Project
 
 
 class TestBasicsForm(WizardTestCase):
 
-    fixtures = ["eric"]
     wizard_class_slug = 'import_wizard_view'
     url = '/dashboard/import/manual/'
 
     def setUp(self):
+        self.eric = User(username='eric')
+        self.eric.set_password('test')
+        self.eric.save()
         self.client.login(username='eric', password='test')
         self.step_data['basics'] = {
             'name': 'foobar',
@@ -29,7 +33,7 @@ class TestBasicsForm(WizardTestCase):
         self.assertIsNotNone(proj)
         for (key, val) in self.step_data['basics'].items():
             self.assertEqual(getattr(proj, key), val)
-        self.assertEqual(proj.documentation_type, 'auto')
+        self.assertEqual(proj.documentation_type, 'sphinx')
 
     def test_form_missing(self):
         '''Submit form with missing data, expect to get failures'''
@@ -179,3 +183,40 @@ class TestImportDemoView(MockBuildTestCase):
 
         self.assertEqual(project,
                          Project.objects.get(slug='eric-demo'))
+
+
+class TestPrivateViews(MockBuildTestCase):
+    def setUp(self):
+        self.user = new(User, username='eric')
+        self.user.set_password('test')
+        self.user.save()
+        self.client.login(username='eric', password='test')
+
+    def test_versions_page(self):
+        pip = get(Project, slug='pip', users=[self.user])
+        pip.versions.create(verbose_name='1.0')
+
+        response = self.client.get('/projects/pip/versions/')
+        self.assertEqual(response.status_code, 200)
+
+        # Test if the versions page works with a version that contains a slash.
+        # That broke in the past, see issue #1176.
+        pip.versions.create(verbose_name='1.0/with-slash')
+
+        response = self.client.get('/projects/pip/versions/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_delete_project(self):
+        project = get(Project, slug='pip', users=[self.user])
+
+        response = self.client.get('/dashboard/pip/delete/')
+        self.assertEqual(response.status_code, 200)
+
+        patcher = patch('readthedocs.projects.views.private.remove_dir')
+        with patcher as remove_dir:
+            response = self.client.post('/dashboard/pip/delete/')
+            self.assertEqual(response.status_code, 302)
+            self.assertFalse(Project.objects.filter(slug='pip').exists())
+            remove_dir.apply_async.assert_called_with(
+                queue='celery',
+                args=[project.doc_path])

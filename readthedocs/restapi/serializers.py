@@ -1,11 +1,11 @@
 from rest_framework import serializers
 
-from builds.models import Build, Version
-from projects.models import Project
+from readthedocs.builds.models import Build, BuildCommandResult, Version
+from readthedocs.projects.models import Project, Domain
+from readthedocs.oauth.models import RemoteOrganization, RemoteRepository
 
 
 class ProjectSerializer(serializers.ModelSerializer):
-    downloads = serializers.CharField(source='get_downloads', read_only=True)
 
     class Meta:
         model = Project
@@ -16,19 +16,12 @@ class ProjectSerializer(serializers.ModelSerializer):
             'default_version', 'default_branch',
             'documentation_type',
             'users',
-            'downloads',
         )
-
-
-class ProjectFullSerializer(ProjectSerializer):
-    '''Serializer for all fields on project model'''
-
-    class Meta:
-        model = Project
 
 
 class VersionSerializer(serializers.ModelSerializer):
     project = ProjectSerializer()
+    downloads = serializers.DictField(source='get_downloads', read_only=True)
 
     class Meta:
         model = Version
@@ -37,32 +30,35 @@ class VersionSerializer(serializers.ModelSerializer):
             'project', 'slug',
             'identifier', 'verbose_name',
             'active', 'built',
+            'downloads',
         )
+
+
+class BuildCommandSerializer(serializers.ModelSerializer):
+    run_time = serializers.ReadOnlyField()
+
+    class Meta:
+        model = BuildCommandResult
 
 
 class BuildSerializer(serializers.ModelSerializer):
-    project = ProjectSerializer()
+
+    """Readonly version of the build serializer, used for user facing display"""
+
+    commands = BuildCommandSerializer(many=True, read_only=True)
+    state_display = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta:
         model = Build
-        fields = (
-            'id',
-            'project',
-            'commit',
-            'type',
-            'date',
-            'success',
-
-        )
+        exclude = ('builder',)
 
 
-class VersionFullSerializer(VersionSerializer):
-    '''Serializer for all fields on version model'''
+class BuildSerializerFull(BuildSerializer):
 
-    project = ProjectFullSerializer()
+    """Writeable Build instance serializer, for admin access by builders"""
 
     class Meta:
-        model = Version
+        model = Build
 
 
 class SearchIndexSerializer(serializers.Serializer):
@@ -70,3 +66,42 @@ class SearchIndexSerializer(serializers.Serializer):
     project = serializers.CharField(max_length=500, required=False)
     version = serializers.CharField(max_length=500, required=False)
     page = serializers.CharField(max_length=500, required=False)
+
+
+class DomainSerializer(serializers.ModelSerializer):
+    project = ProjectSerializer()
+
+    class Meta:
+        model = Domain
+        fields = (
+            'id',
+            'project',
+            'domain',
+            'canonical',
+            'machine',
+            'cname',
+        )
+
+
+class RemoteOrganizationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = RemoteOrganization
+        exclude = ('json', 'email', 'users')
+
+
+class RemoteRepositorySerializer(serializers.ModelSerializer):
+
+    """Remote service repository serializer"""
+
+    organization = RemoteOrganizationSerializer()
+    matches = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RemoteRepository
+        exclude = ('json', 'users')
+
+    def get_matches(self, obj):
+        request = self.context['request']
+        if request.user is not None and request.user.is_authenticated():
+            return obj.matches(request.user)

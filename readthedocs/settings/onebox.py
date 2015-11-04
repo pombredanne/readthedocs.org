@@ -1,3 +1,5 @@
+import os
+
 from .base import *  # noqa
 
 DATABASES = {
@@ -7,11 +9,6 @@ DATABASES = {
     }
 }
 
-REDIS = {
-    'host': 'localhost',
-    'port': 6379,
-    'db': 0,
-}
 BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_ALWAYS_EAGER = False
@@ -42,18 +39,18 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTOCOL", "https")
 SESSION_COOKIE_DOMAIN = None
 
 SLUMBER_USERNAME = 'test'
-SLUMBER_PASSWORD = 'test'
+SLUMBER_PASSWORD = 'test'  # noqa
 SLUMBER_API_HOST = 'http://localhost:8000'
 
 WEBSOCKET_HOST = 'localhost:8088'
 
-IMPORT_EXTERNAL_DATA = False
 DONT_HIT_DB = False
-#PRODUCTION_DOMAIN = 'readthedocs.org'
-#USE_SUBDOMAIN = True
+# PRODUCTION_DOMAIN = 'readthedocs.org'
+# USE_SUBDOMAIN = True
 
 
-try:
-    from local_settings import *  # noqa
-except ImportError:
-    pass
+if not os.environ.get('DJANGO_SETTINGS_SKIP_LOCAL', False):
+    try:
+        from local_settings import *  # noqa
+    except ImportError:
+        pass

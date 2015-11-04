@@ -1,18 +1,21 @@
 language: python
 python:
- - "2.7"
+ - 2.7
+sudo: false
+env:
+ - TOX_ENV=py27
+ - TOX_ENV=docs
+ - TOX_ENV=lint
 install:
- - pip install flake8
- - pip install --allow-all-external --allow-unverified bzr --allow-unverified launchpadlib --allow-unverified lazr.authentication -r pip_requirements.txt
+ - pip install tox
  - pip install coveralls
 script:
- #- flake8 `find . -iname "*.py" -not -ipath "*migration*"`
- - ./runtests.sh
+ - tox -e $TOX_ENV
 after_success:
  - coveralls
 notifications:
   slack:
     rooms:
-      - readthedocs:y3hjODOi7EIz1JAbD1Zb41sz#general
+      - readthedocs:y3hjODOi7EIz1JAbD1Zb41sz#random
     on_success: change
     on_failure: always

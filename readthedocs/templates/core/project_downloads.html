@@ -1,38 +1,32 @@
 {% load i18n %}
 
 {% for version, dict in version_data.items %}
-  {% if dict.pdf_url %}
+  {% if dict.pdf and version.project.enable_pdf_build %}
   <li class="module-item col-span">
-    <a class="module-item-title" href="{{ dict.pdf_url }}">
-      {% blocktrans %}
-        {{ version }} PDF
-      {% endblocktrans %}
+    <a class="module-item-title" href="{{ dict.pdf }}">
+        {{ version.slug }} PDF
     </a>
   </li>
   {% endif %}
 
-  {% if dict.htmlzip_url %}
+  {% if dict.htmlzip %}
   <li class="module-item col-span">
-    <a class="module-item-title" href="{{ dict.htmlzip_url }}">
-      {% blocktrans %}
-        {{ version }} HTMLZip
-      {% endblocktrans %}
+    <a class="module-item-title" href="{{ dict.htmlzip }}">
+        {{ version.slug }} HTMLZip
     </a>
   </li>
   {% endif %}
 
-  {% if dict.epub_url %}
+  {% if dict.epub and version.project.enable_epub_build %}
   <li class="module-item col-span">
-    <a class="module-item-title" href="{{ dict.epub_url }}">
-      {% blocktrans %}
-        {{ version }} Epub
-      {% endblocktrans %}
+    <a class="module-item-title" href="{{ dict.epub }}">
+        {{ version.slug }} Epub
     </a>
   </li>
   {% endif %}
 
 {% empty %}
-  <li class="module-item col-span">
+    <p>
     {% trans "No downloads for this project." %}
-  </li>
+    </p>
 {% endfor %}

@@ -1,9 +1,9 @@
-'''
+"""
 Project views loaded by configuration settings
 
 Use these views instead of calling the views directly, in order to allow for
 settings override of the view class.
-'''
+"""
 
 from django.utils.module_loading import import_by_path
 from django.conf import settings
@@ -13,12 +13,12 @@ from django.conf import settings
 ImportWizardView = import_by_path(getattr(
     settings,
     'PROJECT_IMPORT_VIEW',
-    'projects.views.private.ImportWizardView'
+    'readthedocs.projects.views.private.ImportWizardView'
 ))
 
 # Project demo import
 ImportDemoView = import_by_path(getattr(
     settings,
     'PROJECT_IMPORT_DEMO_VIEW',
-    'projects.views.private.ImportDemoView'
+    'readthedocs.projects.views.private.ImportDemoView'
 ))

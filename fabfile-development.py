@@ -31,17 +31,11 @@ def pip_requirements():
     """Install pip requirements"""
     with cd(env.code_dir):
         with prefix("source %s/bin/activate" % (env.virtualenv)):
-            run("pip install -r pip_requirements.txt")
+            run("pip install -r requirements/pip.txt")
 
 
 def build_db():
     """Build database"""
-    with prefix("source %s/bin/activate" % (env.virtualenv)):
-        run("%s/readthedocs/manage.py syncdb" % (env.code_dir))
-
-
-def migrate_db():
-    """Migrate database"""
     with prefix("source %s/bin/activate" % (env.virtualenv)):
         run("%s/readthedocs/manage.py migrate" % (env.code_dir))
 
@@ -61,7 +55,6 @@ def install():
     clone_repository()
     pip_requirements()
     build_db()
-    migrate_db()
     load_testprojects()
 
 

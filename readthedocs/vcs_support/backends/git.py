@@ -2,11 +2,16 @@ import re
 import logging
 import csv
 import os
-from StringIO import StringIO
+import sys
 
-from projects.exceptions import ProjectImportError
-from vcs_support.backends.github import GithubContributionBackend
-from vcs_support.base import BaseVCS, VCSVersion
+from readthedocs.projects.exceptions import ProjectImportError
+from readthedocs.vcs_support.base import BaseVCS, VCSVersion
+
+if sys.version_info > (3,):
+    from io import StringIO
+else:
+    from StringIO import StringIO
+
 
 log = logging.getLogger(__name__)
 
@@ -14,9 +19,7 @@ log = logging.getLogger(__name__)
 class Backend(BaseVCS):
     supports_tags = True
     supports_branches = True
-    contribution_backends = [GithubContributionBackend]
     fallback_branch = 'master'  # default branch
-
 
     def __init__(self, *args, **kwargs):
         super(Backend, self).__init__(*args, **kwargs)
@@ -32,8 +35,9 @@ class Backend(BaseVCS):
                 clone_url = 'https://%s@%s' % (self.token, hacked_url)
                 return clone_url
             # Don't edit URL because all hosts aren't the same
-            #else:
-                #clone_url = 'git://%s' % (hacked_url)
+
+            # else:
+                # clone_url = 'git://%s' % (hacked_url)
         return self.repo_url
 
     def set_remote_url(self, url):
@@ -48,7 +52,7 @@ class Backend(BaseVCS):
         return code == 0
 
     def fetch(self):
-        code, out, err = self.run('git', 'fetch', '--prune')
+        code, out, err = self.run('git', 'fetch', '--tags', '--prune')
         if code != 0:
             raise ProjectImportError(
                 "Failed to get code from '%s' (git fetch): %s\n\nStderr:\n\n%s\n\n" % (
@@ -170,7 +174,7 @@ class Backend(BaseVCS):
 
         identifier = self.find_ref(identifier)
 
-        #Checkout the correct identifier for this branch.
+        # Checkout the correct identifier for this branch.
         code, out, err = self.checkout_revision(identifier)
         if code != 0:
             return code, out, err

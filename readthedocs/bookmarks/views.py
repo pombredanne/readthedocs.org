@@ -8,14 +8,16 @@ from django.template import RequestContext
 from django.utils.decorators import method_decorator
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
-import simplejson
+import json
 
-from bookmarks.models import Bookmark
-from projects.models import Project
+from readthedocs.bookmarks.models import Bookmark
+from readthedocs.projects.models import Project
+
 
 # These views are CSRF exempt because of Django's CSRF middleware failing here
 # https://github.com/django/django/blob/stable/1.6.x/django/middleware/csrf.py#L135-L159
 # We don't have a valid referrer because we're on a subdomain
+
 
 class BookmarkExistsView(View):
 
@@ -25,7 +27,7 @@ class BookmarkExistsView(View):
 
     def get(self, request):
         return HttpResponse(
-            content=simplejson.dumps(
+            content=json.dumps(
                 {'error': 'You must POST!'}
             ),
             content_type='application/json',
@@ -39,14 +41,14 @@ class BookmarkExistsView(View):
             404 with exists = False in json if no matching bookmark is found.
             400 if json data is missing any one of: project, version, page.
         """
-        post_json = simplejson.loads(request.body)
+        post_json = json.loads(request.body)
         try:
             project = post_json['project']
             version = post_json['version']
             page = post_json['page']
         except KeyError:
             return HttpResponseBadRequest(
-                content=simplejson.dumps({'error': 'Invalid parameters'})
+                content=json.dumps({'error': 'Invalid parameters'})
             )
         try:
             Bookmark.objects.get(
@@ -56,15 +58,15 @@ class BookmarkExistsView(View):
             )
         except ObjectDoesNotExist:
             return HttpResponse(
-                content=simplejson.dumps({'exists': False}),
+                content=json.dumps({'exists': False}),
                 status=404,
-                mimetype="application/json"
+                content_type="application/json"
             )
 
         return HttpResponse(
-            content=simplejson.dumps({'exists': True}),
+            content=json.dumps({'exists': True}),
             status=200,
-            mimetype="application/json"
+            content_type="application/json"
         )
 
 
@@ -90,7 +92,7 @@ class BookmarkAddView(View):
 
     def get(self, request):
         return HttpResponse(
-            content=simplejson.dumps(
+            content=json.dumps(
                 {'error': 'You must POST!'}
             ),
             content_type='application/json',
@@ -101,7 +103,7 @@ class BookmarkAddView(View):
         """Add a new bookmark for the current user to point at
         ``project``, ``version``, ``page``, and ``url``.
         """
-        post_json = simplejson.loads(request.body)
+        post_json = json.loads(request.body)
         try:
             project_slug = post_json['project']
             version_slug = post_json['version']
@@ -109,7 +111,7 @@ class BookmarkAddView(View):
             url = post_json['url']
         except KeyError:
             return HttpResponseBadRequest(
-                content=simplejson.dumps({'error': "Invalid parameters"})
+                content=json.dumps({'error': "Invalid parameters"})
             )
 
         try:
@@ -117,7 +119,7 @@ class BookmarkAddView(View):
             version = project.versions.get(slug=version_slug)
         except ObjectDoesNotExist:
             return HttpResponseBadRequest(
-                content=simplejson.dumps(
+                content=json.dumps(
                     {'error': "Project or Version does not exist"}
                 )
             )
@@ -130,9 +132,9 @@ class BookmarkAddView(View):
             page=page_slug,
         )
         return HttpResponse(
-            simplejson.dumps({'added': True}),
+            json.dumps({'added': True}),
             status=201,
-            mimetype='application/json'
+            content_type='application/json'
         )
 
 
@@ -164,14 +166,14 @@ class BookmarkRemoveView(View):
             return HttpResponseRedirect(reverse('bookmark_list'))
         else:
             try:
-                post_json = simplejson.loads(request.body)
+                post_json = json.loads(request.body)
                 project = Project.objects.get(slug=post_json['project'])
                 version = project.versions.get(slug=post_json['version'])
                 url = post_json['url']
                 page = post_json['page']
             except KeyError:
                 return HttpResponseBadRequest(
-                    simplejson.dumps({'error': "Invalid parameters"})
+                    json.dumps({'error': "Invalid parameters"})
                 )
 
             bookmark = get_object_or_404(
@@ -185,7 +187,7 @@ class BookmarkRemoveView(View):
             bookmark.delete()
 
             return HttpResponse(
-                simplejson.dumps({'removed': True}),
+                json.dumps({'removed': True}),
                 status=200,
-                mimetype="application/json"
+                content_type="application/json"
             )

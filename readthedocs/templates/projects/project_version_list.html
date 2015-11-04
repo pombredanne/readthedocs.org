@@ -13,6 +13,7 @@ Versions
   {% endwith %}
 {% endblock %}
 
+
 {% block content %}
 
   {% comment %}
@@ -35,6 +36,7 @@ Versions
         <div class="module-list-wrapper">
           <ul>
             {% for version in active_filter %}
+              {% block active-versions %}
               <li class="module-item">
                 {# Link to the docs #}
                 <a class="module-item-title" href="{{ version.get_absolute_url }}">{{ version.slug }}</a>
@@ -51,6 +53,7 @@ Versions
 
                 {% if request.user|is_admin:project %}
                   <ul class="module-item-menu">
+                    <li><a href="{% url "wipe_version" project.slug version.slug %}">{% trans "Wipe" %}</a></li>
                     <li><a href="{% url "project_version_detail" project.slug version.slug %}">{% trans "Edit" %}</a></li>
                   </ul>
                 {% else %}
@@ -60,13 +63,19 @@ Versions
                 {% endif %}
 
               </li>
+              {% endblock active-versions %}
+
+            {% empty %}
+            <p>
+            {% trans "No active versions." %}
+            </p>
             {% endfor %}
           </ul>
         </div>
       </div>
     </div>
 
-    {% if request.user|is_admin:project %}
+    {% if request.user|is_admin:project or request.user.is_staff %}
     <div class="module project-versions-inactive">
       <div class="module-wrapper">
 
@@ -75,6 +84,8 @@ Versions
           <div class="module-list-wrapper">
             <ul>
               {% for version in inactive_filter %}
+
+              {% block inactive-versions %}
                 <li class="module-item">
                   {# Link to the docs #}
                   <span class="quiet">{{ version.slug }}</span>
@@ -92,11 +103,18 @@ Versions
 
                   {% if request.user|is_admin:project %}
                     <ul class="module-item-menu">
+                      {% if version.built %}
+                          <li><a href="{% url "project_version_delete_html" project.slug version.slug %}">{% trans "Clean" %}</a></li>
+                      {% endif %}
+                      <li><a href="{% url "wipe_version" project.slug version.slug %}">{% trans "Wipe" %}</a></li>
                       <li><a href="{% url "project_version_detail" project.slug version.slug %}">{% trans "Edit" %}</a></li>
                     </ul>
                   {% endif %}
+
                   
                 </li>
+              {% endblock inactive-versions %}
+              
               {% endfor %}
             </ul>
           </div>

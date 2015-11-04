@@ -1,14 +1,14 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2010, Eric Holscher, Charlie Leifer, Bobby Grace
 # This file is distributed under the same license as the Read The Docs package.
-# 
+#
 # Translators:
 msgid ""
 msgstr ""
 "Project-Id-Version: readthedocs-docs\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-03-01 22:07+0800\n"
-"PO-Revision-Date: 2014-03-01 14:09+0000\n"
+"POT-Creation-Date: 2014-03-26 11:17+0100\n"
+"PO-Revision-Date: 2014-09-07 06:00+0000\n"
 "Last-Translator: Eric Holscher <eric@ericholscher.com>\n"
 "Language-Team: Spanish (http://www.transifex.com/projects/p/readthedocs-docs/language/es/)\n"
 "MIME-Version: 1.0\n"
@@ -32,7 +32,7 @@ msgstr ""
 
 # b76f9583f25246b88eb15790dbfed33c
 #: ../../features.rst:7
-msgid "Github and Bitbucket Integration"
+msgid "GitHub and Bitbucket Integration"
 msgstr ""
 
 # 8d0f0e8a31304c2e9326610f43e7cd44
@@ -58,7 +58,7 @@ msgstr ""
 msgid ""
 "The :doc:`webhooks` page talks about the different ways you can ping RTD to "
 "let us know your project has been updated. We have official support for "
-"Github, and anywhere else we have a generic post-commit hook that allows you"
+"GitHub, and anywhere else we have a generic post-commit hook that allows you"
 " to POST to a URL to get your documentation built."
 msgstr ""
 
@@ -153,7 +153,7 @@ msgstr ""
 # 6c26f8a332e24cbabccd65a480f8ff3e
 #: ../../features.rst:46
 msgid "Default"
-msgstr ""
+msgstr "Predeterminado"
 
 # ce3701f32dcf4b4eb72e5daba9fff9d1
 #: ../../features.rst:46

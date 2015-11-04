@@ -1,31 +1,32 @@
 import logging
 import json
+import mock
 
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.contrib.auth.models import User
 
-from builds.models import Version
-from projects.models import Project
-from projects.forms import UpdateProjectForm
-from projects import tasks
+from readthedocs.builds.constants import LATEST
+from readthedocs.builds.models import Version, Build
+from readthedocs.projects.models import Project
+from readthedocs.projects.forms import UpdateProjectForm
+from readthedocs.projects import tasks
 
 log = logging.getLogger(__name__)
 
 
 class PrivacyTests(TestCase):
-    fixtures = ["eric"]
-
-    def tearDown(self):
-        tasks.update_docs = self.old_bd
 
     def setUp(self):
-        self.old_bd = tasks.update_docs
+        self.eric = User(username='eric')
+        self.eric.set_password('test')
+        self.eric.save()
 
-        def mock(*args, **kwargs):
-            pass
-            #log.info("Mocking for great profit and speed.")
-        tasks.update_docs.delay = mock
+        self.tester = User(username='tester')
+        self.tester.set_password('test')
+        self.tester.save()
+
+        tasks.UpdateDocsTask.delay = mock.Mock()
 
     def _create_kong(self, privacy_level='private',
                      version_privacy_level='private'):
@@ -40,7 +41,7 @@ class PrivacyTests(TestCase):
                   'language': 'en',
                   'default_branch': '',
                   'project_url': 'http://django-kong.rtfd.org',
-                  'default_version': 'latest',
+                  'default_version': LATEST,
                   'python_interpreter': 'python',
                   'description': 'OOHHH AH AH AH KONG SMASH',
                   'documentation_type': 'sphinx'},
@@ -53,6 +54,10 @@ class PrivacyTests(TestCase):
         proj.num_major = 2
         proj.num_point = 2
         proj.save()
+
+        latest = proj.versions.get(slug='latest')
+        latest.privacy_level = version_privacy_level
+        latest.save()
 
         self.assertAlmostEqual(Project.objects.count(), 1)
         r = self.client.get('/projects/django-kong/')
@@ -69,7 +74,7 @@ class PrivacyTests(TestCase):
         self.client.login(username='eric', password='test')
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
-        r = self.client.get('/builds/django-kong/')
+        r = self.client.get('/projects/django-kong/builds/')
         self.assertEqual(r.status_code, 200)
         r = self.client.get('/projects/django-kong/downloads/')
         self.assertEqual(r.status_code, 200)
@@ -79,7 +84,7 @@ class PrivacyTests(TestCase):
         self.assertTrue('Django Kong' not in r.content)
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 404)
-        r = self.client.get('/builds/django-kong/')
+        r = self.client.get('/projects/django-kong/builds/')
         self.assertEqual(r.status_code, 404)
         r = self.client.get('/projects/django-kong/downloads/')
         self.assertEqual(r.status_code, 404)
@@ -94,7 +99,7 @@ class PrivacyTests(TestCase):
         self.client.login(username='eric', password='test')
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
-        r = self.client.get('/builds/django-kong/')
+        r = self.client.get('/projects/django-kong/builds/')
         self.assertEqual(r.status_code, 200)
         r = self.client.get('/projects/django-kong/downloads/')
         self.assertEqual(r.status_code, 200)
@@ -102,7 +107,7 @@ class PrivacyTests(TestCase):
         self.client.login(username='tester', password='test')
         r = self.client.get('/projects/django-kong/')
         self.assertEqual(r.status_code, 200)
-        r = self.client.get('/builds/django-kong/')
+        r = self.client.get('/projects/django-kong/builds/')
         self.assertEqual(r.status_code, 200)
         r = self.client.get('/projects/django-kong/downloads/')
         self.assertEqual(r.status_code, 200)
@@ -117,10 +122,14 @@ class PrivacyTests(TestCase):
         self.assertEqual(Version.objects.get(slug='test-slug').privacy_level, 'private')
         r = self.client.get('/projects/django-kong/')
         self.assertTrue('test-slug' in r.content)
+        r = self.client.get('/projects/django-kong/builds/')
+        self.assertTrue('test-slug' in r.content)
 
         # Make sure it doesn't show up as tester
         self.client.login(username='tester', password='test')
         r = self.client.get('/projects/django-kong/')
+        self.assertTrue('test-slug' not in r.content)
+        r = self.client.get('/projects/django-kong/builds/')
         self.assertTrue('test-slug' not in r.content)
 
     def test_public_branch(self):
@@ -318,3 +327,23 @@ class PrivacyTests(TestCase):
         r = self.client.get('/projects/django-kong/downloads/htmlzip/latest/')
         self.assertEqual(r.status_code, 302)
         self.assertEqual(r._headers['location'][1], 'http://testserver/media/htmlzip/django-kong/latest/django-kong.zip')
+
+# Build Filtering
+
+    def test_build_filtering(self):
+        kong = self._create_kong('public', 'private')
+
+        self.client.login(username='eric', password='test')
+        ver = Version.objects.create(project=kong, identifier='test id',
+                                     verbose_name='test verbose', privacy_level='private', slug='test-slug', active=True)
+
+        r = self.client.get('/projects/django-kong/builds/')
+        self.assertTrue(r.content.count('test-slug', 1))
+        Build.objects.create(project=kong, version=ver)
+        r = self.client.get('/projects/django-kong/builds/')
+        self.assertTrue(r.content.count('test-slug', 2))
+
+        # Make sure it doesn't show up as tester
+        self.client.login(username='tester', password='test')
+        r = self.client.get('/projects/django-kong/builds/')
+        self.assertTrue('test-slug' not in r.content)

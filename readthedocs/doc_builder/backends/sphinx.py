@@ -1,25 +1,26 @@
-import re
 import os
+import sys
 import codecs
 from glob import glob
 import logging
 import zipfile
 
-from django.template import Context, loader as template_loader
+from django.template import loader as template_loader
 from django.template.loader import render_to_string
 from django.conf import settings
 
-from builds import utils as version_utils
-from doc_builder.base import BaseBuilder, restoring_chdir
-from projects.utils import run, safe_write
-from projects.exceptions import ProjectImportError
-from tastyapi import apiv2
+from readthedocs.builds import utils as version_utils
+from readthedocs.builds.constants import BRANCH
+from readthedocs.projects.utils import safe_write
+from readthedocs.projects.exceptions import ProjectImportError
+from readthedocs.restapi.client import api
+
+from ..base import BaseBuilder, restoring_chdir
+from ..exceptions import BuildEnvironmentError
+from ..environments import BuildCommand
+from ..constants import SPHINX_TEMPLATE_DIR, SPHINX_STATIC_DIR, PDF_RE
 
 log = logging.getLogger(__name__)
-
-TEMPLATE_DIR = '%s/readthedocs/templates/sphinx' % settings.SITE_ROOT
-STATIC_DIR = '%s/_static' % TEMPLATE_DIR
-PDF_RE = re.compile('Output written on (.*?)')
 
 
 class BaseSphinx(BaseBuilder):
@@ -31,20 +32,23 @@ class BaseSphinx(BaseBuilder):
     def __init__(self, *args, **kwargs):
         super(BaseSphinx, self).__init__(*args, **kwargs)
         try:
-            self.old_artifact_path = os.path.join(self.version.project.conf_dir(self.version.slug), self.sphinx_build_dir)
+            self.old_artifact_path = os.path.join(
+                self.project.conf_dir(self.version.slug),
+                self.sphinx_build_dir)
         except ProjectImportError:
             docs_dir = self.docs_dir()
             self.old_artifact_path = os.path.join(docs_dir, self.sphinx_build_dir)
 
-    def _write_config(self):
+    def _write_config(self, master_doc='index'):
         """
         Create ``conf.py`` if it doesn't exist.
         """
         docs_dir = self.docs_dir()
         conf_template = render_to_string('sphinx/conf.py.conf',
-                                         {'project': self.version.project,
+                                         {'project': self.project,
                                           'version': self.version,
-                                          'template_dir': TEMPLATE_DIR,
+                                          'template_dir': SPHINX_TEMPLATE_DIR,
+                                          'master_doc': master_doc,
                                           })
         conf_file = os.path.join(docs_dir, 'conf.py')
         safe_write(conf_file, conf_template)
@@ -55,88 +59,126 @@ class BaseSphinx(BaseBuilder):
 
         # Pull config data
         try:
-            conf_py_path = version_utils.get_conf_py_path(self.version)
+            conf_py_path = self.version.get_conf_py_path()
         except ProjectImportError:
-            self._write_config()
-            self.create_index(extension='rst')
+            master_doc = self.create_index(extension='rst')
+            self._write_config(master_doc=master_doc)
 
-        project = self.version.project
+        project = self.project
         # Open file for appending.
-        outfile = codecs.open(project.conf_file(self.version.slug), encoding='utf-8', mode='a')
-        outfile.write("\n")
-        conf_py_path = version_utils.get_conf_py_path(self.version)
-        remote_version = version_utils.get_vcs_version_slug(self.version)
-        github_info = version_utils.get_github_username_repo(self.version)
-        bitbucket_info = version_utils.get_bitbucket_username_repo(self.version)
-        if github_info[0] is None:
-            display_github = False
-        else:
-            display_github = True
-        if bitbucket_info[0] is None:
-            display_bitbucket = False
-        else:
-            display_bitbucket = True
+        outfile_path = project.conf_file(self.version.slug)
+        try:
+            outfile = codecs.open(outfile_path, encoding='utf-8', mode='a')
+        except IOError:
+            trace = sys.exc_info()[2]
+            raise ProjectImportError('Conf file not found'), None, trace
+        try:
+            outfile.write("\n")
+            # TODO this should be handled better in the theme
+            conf_py_path = os.path.join(os.path.sep,
+                                        self.version.get_conf_py_path(),
+                                        '')
+            remote_version = self.version.commit_name
 
-        rtd_ctx = Context({
-            'current_version': self.version.slug,
-            'project': project,
-            'settings': settings,
-            'static_path': STATIC_DIR,
-            'template_path': TEMPLATE_DIR,
-            'conf_py_path': conf_py_path,
-            'api_host': getattr(settings, 'SLUMBER_API_HOST', 'https://readthedocs.org'),
-            # GitHub
-            'github_user': github_info[0],
-            'github_repo': github_info[1],
-            'github_version':  remote_version,
-            'display_github': display_github,
-            # BitBucket
-            'bitbucket_user': bitbucket_info[0],
-            'bitbucket_repo': bitbucket_info[1],
-            'bitbucket_version':  remote_version,
-            'display_bitbucket': display_bitbucket,
-            'commit': self.version.project.vcs_repo(self.version.slug).commit,
-        })
+            github_user, github_repo = version_utils.get_github_username_repo(
+                url=self.project.repo)
+            github_version_is_editable = (self.version.type == 'branch')
+            display_github = github_user is not None
 
-        # Avoid hitting database and API if using Docker build environment
-        if getattr(settings, 'DONT_HIT_API', False):
-            rtd_ctx['versions'] = project.active_versions()
-            rtd_ctx['downloads'] = self.version.get_downloads(pretty=True)
-        else:
-            rtd_ctx['versions'] = project.api_versions()
-            rtd_ctx['downloads'] = (apiv2.version(self.version.pk)
-                                    .downloads.get()['downloads'])
+            bitbucket_user, bitbucket_repo = version_utils.get_bitbucket_username_repo(
+                url=self.project.repo)
+            bitbucket_version_is_editable = (self.version.type == 'branch')
+            display_bitbucket = bitbucket_user is not None
 
-        rtd_string = template_loader.get_template('doc_builder/conf.py.tmpl').render(rtd_ctx)
-        outfile.write(rtd_string)
+            rtd_ctx = {
+                'current_version': self.version.verbose_name,
+                'project': project,
+                'settings': settings,
+                'static_path': SPHINX_STATIC_DIR,
+                'template_path': SPHINX_TEMPLATE_DIR,
+                'conf_py_path': conf_py_path,
+                'api_host': getattr(settings, 'SLUMBER_API_HOST', 'https://readthedocs.org'),
+                # GitHub
+                'github_user': github_user,
+                'github_repo': github_repo,
+                'github_version': remote_version,
+                'github_version_is_editable': github_version_is_editable,
+                'display_github': display_github,
+                # BitBucket
+                'bitbucket_user': bitbucket_user,
+                'bitbucket_repo': bitbucket_repo,
+                'bitbucket_version': remote_version,
+                'bitbucket_version_is_editable': bitbucket_version_is_editable,
+                'display_bitbucket': display_bitbucket,
+                'commit': self.project.vcs_repo(self.version.slug).commit,
+            }
 
-    @restoring_chdir
+            # Avoid hitting database and API if using Docker build environment
+            if getattr(settings, 'DONT_HIT_API', False):
+                rtd_ctx['versions'] = project.active_versions()
+                rtd_ctx['downloads'] = self.version.get_downloads(pretty=True)
+            else:
+                rtd_ctx['versions'] = project.api_versions()
+                rtd_ctx['downloads'] = (api.version(self.version.pk)
+                                        .get()['downloads'])
+            rtd_string = template_loader.get_template('doc_builder/conf.py.tmpl').render(rtd_ctx)
+            outfile.write(rtd_string)
+        finally:
+            outfile.close()
+
+        # Print the contents of conf.py in order to make the rendered
+        # configfile visible in the build logs
+        self.run(
+            'cat', os.path.basename(outfile_path),
+            cwd=os.path.dirname(outfile_path),
+        )
+
     def build(self, **kwargs):
         self.clean()
-        project = self.version.project
-        os.chdir(project.conf_dir(self.version.slug))
-        force_str = " -E " if self._force else ""
-        build_command = "%s -T %s -b %s -D language=%s . %s " % (
-            project.venv_bin(version=self.version.slug,
-                             bin='sphinx-build'),
-            force_str,
-            self.sphinx_builder,
-            project.language,
-            self.sphinx_build_dir,
+        project = self.project
+        build_command = [
+            'python',
+            project.venv_bin(version=self.version.slug, filename='sphinx-build'),
+            '-T'
+        ]
+        if self._force:
+            build_command.append('-E')
+        build_command.extend([
+            '-b', self.sphinx_builder,
+            '-d', '_build/doctrees-{format}'.format(format=self.sphinx_builder),
+            '-D', 'language={lang}'.format(lang=project.language),
+            '.',
+            self.sphinx_build_dir
+        ])
+        cmd_ret = self.run(
+            *build_command,
+            cwd=project.conf_dir(self.version.slug),
+            bin_path=project.venv_bin(version=self.version.slug)
         )
-        results = run(build_command, shell=True)
-        return results
+        return cmd_ret.successful
 
 
 class HtmlBuilder(BaseSphinx):
     type = 'sphinx'
-    sphinx_builder = 'readthedocs'
     sphinx_build_dir = '_build/html'
+
+    def __init__(self, *args, **kwargs):
+        super(HtmlBuilder, self).__init__(*args, **kwargs)
+        if self.project.allow_comments:
+            self.sphinx_builder = 'readthedocs-comments'
+        else:
+            self.sphinx_builder = 'readthedocs'
 
 
 class HtmlDirBuilder(HtmlBuilder):
     type = 'sphinx_htmldir'
-    sphinx_builder = 'readthedocsdirhtml'
+
+    def __init__(self, *args, **kwargs):
+        super(HtmlDirBuilder, self).__init__(*args, **kwargs)
+        if self.project.allow_comments:
+            self.sphinx_builder = 'readthedocsdirhtml-comments'
+        else:
+            self.sphinx_builder = 'readthedocsdirhtml'
 
 
 class SingleHtmlBuilder(HtmlBuilder):
@@ -158,7 +200,7 @@ class LocalMediaBuilder(BaseSphinx):
     @restoring_chdir
     def move(self, **kwargs):
         log.info("Creating zip file from %s" % self.old_artifact_path)
-        target_file = os.path.join(self.target, '%s.zip' % self.version.project.slug)
+        target_file = os.path.join(self.target, '%s.zip' % self.project.slug)
         if not os.path.exists(self.target):
             os.makedirs(self.target)
         if os.path.exists(target_file):
@@ -172,7 +214,7 @@ class LocalMediaBuilder(BaseSphinx):
                 to_write = os.path.join(root, file)
                 archive.write(
                     filename=to_write,
-                    arcname=os.path.join("%s-%s" % (self.version.project.slug,
+                    arcname=os.path.join("%s-%s" % (self.project.slug,
                                                     self.version.slug),
                                          to_write)
                 )
@@ -190,8 +232,19 @@ class EpubBuilder(BaseSphinx):
             os.makedirs(self.target)
         if from_globs:
             from_file = from_globs[0]
-            to_file = os.path.join(self.target, "%s.epub" % self.version.project.slug)
-            run('mv -f %s %s' % (from_file, to_file))
+            to_file = os.path.join(self.target, "%s.epub" % self.project.slug)
+            self.run('mv', '-f', from_file, to_file)
+
+
+class LatexBuildCommand(BuildCommand):
+    '''Ignore LaTeX exit code if there was file output'''
+
+    def run(self):
+        super(LatexBuildCommand, self).run()
+        # Force LaTeX exit code to be a little more optimistic. If LaTeX
+        # reports an output file, let's just assume we're fine.
+        if PDF_RE.search(self.output):
+            self.exit_code = 0
 
 
 class PdfBuilder(BaseSphinx):
@@ -199,52 +252,69 @@ class PdfBuilder(BaseSphinx):
     sphinx_build_dir = '_build/latex'
     pdf_file_name = None
 
-    @restoring_chdir
     def build(self, **kwargs):
         self.clean()
-        project = self.version.project
-        os.chdir(project.conf_dir(self.version.slug))
+        cwd = self.project.conf_dir(self.version.slug)
+
         # Default to this so we can return it always.
-        results = {}
-        latex_results = run('%s -b latex -D language=%s -d _build/doctrees . _build/latex'
-                            % (project.venv_bin(version=self.version.slug,
-                                                bin='sphinx-build'), project.language))
+        self.run(
+            'python',
+            self.project.venv_bin(version=self.version.slug,
+                                  filename='sphinx-build'),
+            '-b', 'latex',
+            '-D', 'language={lang}'.format(lang=self.project.language),
+            '-d', '_build/doctrees',
+            '.',
+            '_build/latex',
+            cwd=cwd,
+            bin_path=self.project.venv_bin(version=self.version.slug)
+        )
+        latex_cwd = os.path.join(cwd, '_build', 'latex')
+        tex_files = glob(os.path.join(latex_cwd, '*.tex'))
 
-        if latex_results[0] == 0:
-            os.chdir('_build/latex')
-            tex_files = glob('*.tex')
+        if not tex_files:
+            raise BuildEnvironmentError('No TeX files were found')
 
-            if tex_files:
-                # Run LaTeX -> PDF conversions
-                pdflatex_cmds = [('pdflatex -interaction=nonstopmode %s'
-                                  % tex_file) for tex_file in tex_files]
-                makeindex_cmds = [('makeindex -s python.ist %s.idx'
-                                   % os.path.splitext(tex_file)[0]) for tex_file in tex_files]
-                pdf_results = run(*pdflatex_cmds)
-                ind_results = run(*makeindex_cmds)
-                pdf_results = run(*pdflatex_cmds)
-            else:
-                pdf_results = (0, "No tex files found", "No tex files found")
-                ind_results = (0, "No tex files found", "No tex files found")
+        # Run LaTeX -> PDF conversions
+        pdflatex_cmds = [
+            ['pdflatex',
+                '-interaction=nonstopmode',
+                tex_file]
+            for tex_file in tex_files]
+        makeindex_cmds = [
+            ['makeindex',
+                '-s',
+                'python.ist',
+                '{0}.idx'.format(
+                    os.path.splitext(os.path.relpath(tex_file, latex_cwd))[0])]
+            for tex_file in tex_files]
 
-            results = [
-                latex_results[0] + ind_results[0] + pdf_results[0],
-                latex_results[1] + ind_results[1] + pdf_results[1],
-                latex_results[2] + ind_results[2] + pdf_results[2],
-            ]
-            pdf_match = PDF_RE.search(results[1])
+        pdf_commands = []
+        for cmd in pdflatex_cmds:
+            cmd_ret = self.build_env.run_command_class(
+                cls=LatexBuildCommand, cmd=cmd, cwd=latex_cwd, warn_only=True)
+            pdf_commands.append(cmd_ret)
+        for cmd in makeindex_cmds:
+            cmd_ret = self.build_env.run_command_class(
+                cls=LatexBuildCommand, cmd=cmd, cwd=latex_cwd, warn_only=True)
+            pdf_commands.append(cmd_ret)
+        for cmd in pdflatex_cmds:
+            cmd_ret = self.build_env.run_command_class(
+                cls=LatexBuildCommand, cmd=cmd, cwd=latex_cwd, warn_only=True)
+            pdf_match = PDF_RE.search(cmd_ret.output)
             if pdf_match:
                 self.pdf_file_name = pdf_match.group(1).strip()
-        else:
-            results = latex_results
-        return results
+            pdf_commands.append(cmd_ret)
+        return all(cmd.successful for cmd in pdf_commands)
 
     def move(self, **kwargs):
         if not os.path.exists(self.target):
             os.makedirs(self.target)
 
-        exact = os.path.join(self.old_artifact_path, "%s.pdf" % self.version.project.slug)
-        exact_upper = os.path.join(self.old_artifact_path, "%s.pdf" % self.version.project.slug.capitalize())
+        exact = os.path.join(self.old_artifact_path, "%s.pdf" % self.project.slug)
+        exact_upper = os.path.join(
+            self.old_artifact_path,
+            "%s.pdf" % self.project.slug.capitalize())
 
         if self.pdf_file_name and os.path.exists(self.pdf_file_name):
             from_file = self.pdf_file_name
@@ -255,9 +325,9 @@ class PdfBuilder(BaseSphinx):
         else:
             from_globs = glob(os.path.join(self.old_artifact_path, "*.pdf"))
             if from_globs:
-                from_file = from_globs[0]
+                from_file = max(from_globs, key=os.path.getmtime)
             else:
                 from_file = None
         if from_file:
-            to_file = os.path.join(self.target, "%s.pdf" % self.version.project.slug)
-            run('mv -f %s %s' % (from_file, to_file))
+            to_file = os.path.join(self.target, "%s.pdf" % self.project.slug)
+            self.run('mv', '-f', from_file, to_file)

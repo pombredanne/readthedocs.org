@@ -1,5 +1,7 @@
-"""Default values and other various configuration for projects,
-including available theme names and repository types.
+"""Project constants
+
+Default values and other various configuration for projects, including available
+theme names and repository types.
 """
 
 import re
@@ -20,9 +22,8 @@ DOCUMENTATION_CHOICES = (
     ('mkdocs', _('Mkdocs (Markdown)')),
     ('sphinx_htmldir', _('Sphinx HtmlDir')),
     ('sphinx_singlehtml', _('Sphinx Single Page HTML')),
-    #('sphinx_websupport2', _('Sphinx Websupport')),
-    #('sphinx_man', 'Sphinx Man'),
-    #('rdoc', 'Rdoc'),
+    # ('sphinx_websupport2', _('Sphinx Websupport')),
+    # ('rdoc', 'Rdoc'),
 )
 
 DEFAULT_THEME_CHOICES = (
@@ -30,8 +31,8 @@ DEFAULT_THEME_CHOICES = (
     (THEME_DEFAULT, _('Default')),
     # Translators: This is a name of a Sphinx theme.
     (THEME_SPHINX, _('Sphinx Docs')),
-    #(THEME_SCROLLS, 'Scrolls'),
-    #(THEME_AGOGO, 'Agogo'),
+    # (THEME_SCROLLS, 'Scrolls'),
+    # (THEME_AGOGO, 'Agogo'),
     # Translators: This is a name of a Sphinx theme.
     (THEME_TRADITIONAL, _('Traditional')),
     # Translators: This is a name of a Sphinx theme.
@@ -70,11 +71,16 @@ STATUS_CHOICES = (
     (DELETED_STATUS, _('Deleted')),
 )
 
+REPO_TYPE_GIT = 'git'
+REPO_TYPE_SVN = 'svn'
+REPO_TYPE_HG = 'hg'
+REPO_TYPE_BZR = 'bzr'
+
 REPO_CHOICES = (
-    ('git', _('Git')),
-    ('svn', _('Subversion')),
-    ('hg', _('Mercurial')),
-    ('bzr', _('Bazaar')),
+    (REPO_TYPE_GIT, _('Git')),
+    (REPO_TYPE_SVN, _('Subversion')),
+    (REPO_TYPE_HG, _('Mercurial')),
+    (REPO_TYPE_BZR, _('Bazaar')),
 )
 
 PUBLIC = 'public'
@@ -270,3 +276,21 @@ PROGRAMMING_LANGUAGES = (
 )
 
 LOG_TEMPLATE = u"(Build) [{project}:{version}] {msg}"
+
+PROJECT_PK_REGEX = '(?:[-\w]+)'
+PROJECT_SLUG_REGEX = '(?:[-\w]+)'
+
+GITHUB_REGEXS = [
+    re.compile('github.com/(.+)/(.+)(?:\.git){1}'),
+    re.compile('github.com/(.+)/(.+)'),
+    re.compile('github.com:(.+)/(.+).git'),
+]
+BITBUCKET_REGEXS = [
+    re.compile('bitbucket.org/(.+)/(.+).git'),
+    re.compile('bitbucket.org/(.+)/(.+)/'),
+    re.compile('bitbucket.org/(.+)/(.+)'),
+]
+GITHUB_URL = ('https://github.com/{user}/{repo}/'
+              '{action}/{version}{docroot}{path}{source_suffix}')
+BITBUCKET_URL = ('https://bitbucket.org/{user}/{repo}/'
+                 'src/{version}{docroot}{path}{source_suffix}')

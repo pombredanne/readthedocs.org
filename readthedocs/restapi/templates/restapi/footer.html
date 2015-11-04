@@ -11,6 +11,7 @@
     <div class="rst-other-versions">
       {% endif %}
 
+      {% block versions %}
       {% if translations %}
       <dl>
         <dt>Languages</dt>
@@ -26,7 +27,7 @@
         {% for translation in group.list %}
         {% if translation.language != main_project.language %}
         {% if translation.language == current_language %} <strong> {% endif %}
-        <dd><a href="{{ translation.get_translation_url }}{{ path }}">{{ translation.language }}</a></dd>
+        <dd><a href="{{ translation.get_docs_url }}{{ path }}">{{ translation.language }}</a></dd>
         {% if translation.language == current_language %} </strong> {% endif %}
         {% endif %}
         {% endfor %}
@@ -34,20 +35,19 @@
 
       </dl>
       {% endif %}
-      {% if not project.single_version %} {# and versions|length > 1 #}
+      {% if not project.single_version and versions|length >= 1 %}
       <dl>
         <dt>Versions</dt>
         {% for version in versions %}
-        {% if version.slug == current_version %} <strong> {% endif %}
-        {% if subproject %}
-        <dd><a href="{{ version.get_subproject_url }}{{ path }}">{{ version.slug }}</a></dd>
-        {% else %}
-        <dd><a href="{{ version.get_subdomain_url }}{{ path }}">{{ version.slug }}</a></dd>
-        {% endif %}
-        {% if version.slug == current_version %} </strong> {% endif %}
+        {% if version.verbose_name == current_version %} <strong> {% endif %}
+        <dd><a href="{{ version.get_subdomain_url }}{{ path|default_if_none:"" }}">{{ version.slug }}</a></dd>
+        {% if version.verbose_name == current_version %} </strong> {% endif %}
         {% endfor %}
       </dl>
       {% endif %}
+      {% endblock %}
+
+      {% block downloads %}
       {% if downloads %}
       <dl>
         <dt>Downloads</dt>
@@ -56,7 +56,9 @@
         {% endfor %}
       </dl>
       {% endif %}
+      {% endblock %}
 
+      {% block readthedocs %}
       <dl>
         <!-- These are kept as relative links for internal installs that are http -->
         <dt>On Read the Docs</dt>
@@ -70,30 +72,9 @@
           <a href="//{{ settings.PRODUCTION_DOMAIN }}{% url 'project_downloads' project.slug %}">Downloads</a>
         </dd>
       </dl>
+      {% endblock %}
 
-      {% if show_bookmarks %}
-      <dl>
-        <dt>Bookmark</dt>
-        <dd>
-
-          <div class="bookmark-icon">
-            <div class='bookmark-inactive'>
-              <a class="bookmark" token="{{ csrf_token }}">
-                <img src="{{ settings.MEDIA_URL }}/images/bookmark-icon-default.png" />
-              </a>
-            </div>
-
-            <div class="bookmark-active">
-              <a class="bookmark" token="{{ csrf_token }}">
-                <img src="{{ settings.MEDIA_URL }}/images/bookmark-icon-active.png" />
-              </a>
-            </div>
-
-            <div class="bookmark-added-msg"></div>
-          </div>
-        </dd>
-      </dl>
-      {% endif %}
+      {% block vcs %}
 
       {% if github_edit_url %}
       <dl>
@@ -113,7 +94,9 @@
         </dd>
       </dl>
       {% endif %}
+      {% endblock %}
 
+      {% block search %}
       <dl>
         <dt>Search</dt>
         <dd>
@@ -124,11 +107,14 @@
           </div>
         </dd>
       </dl>
+      {% endblock %}
 
 
 
       <hr/>
-      Free document hosting provided by <a href="https://readthedocs.org">Read the Docs</a>. Support us on <a href="https://www.gittip.com/readthedocs/">Gittip</a>.
+      {% block footer %}
+      Free document hosting provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+      {% endblock %}
 
       {% if not new_theme %}
     </div>

@@ -1,9 +1,14 @@
 import csv
 import re
-from StringIO import StringIO
+import sys
 
-from projects.exceptions import ProjectImportError
-from vcs_support.base import BaseVCS, VCSVersion
+from readthedocs.projects.exceptions import ProjectImportError
+from readthedocs.vcs_support.base import BaseVCS, VCSVersion
+
+if sys.version_info > (3,):
+    from io import StringIO
+else:
+    from StringIO import StringIO
 
 
 class Backend(BaseVCS):

@@ -1,4 +1,7 @@
+"""Project forms"""
+
 from random import choice
+from urlparse import urlparse
 
 from django import forms
 from django.conf import settings
@@ -10,13 +13,21 @@ from django.utils.safestring import mark_safe
 
 from guardian.shortcuts import assign
 
-from core.utils import trigger_build
-from redirects.models import Redirect
-from projects import constants
-from projects.models import Project, EmailHook, WebHook
+from readthedocs.builds.constants import TAG
+from readthedocs.core.utils import trigger_build
+from readthedocs.redirects.models import Redirect
+from readthedocs.projects import constants
+from readthedocs.projects.models import Project, EmailHook, WebHook, Domain
+from readthedocs.privacy.loader import AdminPermission
 
 
 class ProjectForm(forms.ModelForm):
+
+    """Project form
+
+    :param user: If provided, add this user as a project user on save
+    """
+
     required_css_class = "required"
 
     def __init__(self, *args, **kwargs):
@@ -32,14 +43,15 @@ class ProjectForm(forms.ModelForm):
 
 
 class ProjectTriggerBuildMixin(object):
-    '''Mixin to trigger build on form save
+
+    """Mixin to trigger build on form save
 
     This should be replaced with signals instead of calling trigger_build
     explicitly.
-    '''
+    """
 
     def save(self, commit=True):
-        '''Trigger build on commit save'''
+        """Trigger build on commit save"""
         project = super(ProjectTriggerBuildMixin, self).save(commit)
         if commit:
             trigger_build(project=project)
@@ -47,12 +59,15 @@ class ProjectTriggerBuildMixin(object):
 
 
 class ProjectBackendForm(forms.Form):
-    '''Get the import backend'''
+
+    """Get the import backend"""
+
     backend = forms.CharField()
 
 
 class ProjectBasicsForm(ProjectForm):
-    '''Form for basic project fields'''
+
+    """Form for basic project fields"""
 
     class Meta:
         model = Project
@@ -103,6 +118,8 @@ class ProjectBasicsForm(ProjectForm):
 
 class ProjectExtraForm(ProjectForm):
 
+    """Additional project information form"""
+
     class Meta:
         model = Project
         fields = (
@@ -110,22 +127,14 @@ class ProjectExtraForm(ProjectForm):
             'documentation_type',
             'language', 'programming_language',
             'project_url',
-            'canonical_url',
             'tags',
         )
 
-    def __init__(self, *args, **kwargs):
-        super(ProjectExtraForm, self).__init__(*args, **kwargs)
-        self.fields['canonical_url'].widget.attrs['placeholder'] = self.placehold_canonical_url()
-
-    def placehold_canonical_url(self):
-        return choice([
-            'http://docs.fabfile.org',
-            'http://example.readthedocs.org',
-        ])
-
 
 class ProjectAdvancedForm(ProjectTriggerBuildMixin, ProjectForm):
+
+    """Advanced project option form"""
+
     python_interpreter = forms.ChoiceField(
         choices=constants.PYTHON_CHOICES, initial='python',
         help_text=_("(Beta) The Python interpreter used to create the virtual "
@@ -141,6 +150,8 @@ class ProjectAdvancedForm(ProjectTriggerBuildMixin, ProjectForm):
             'conf_py_file',
             'default_branch',
             'default_version',
+            'enable_pdf_build',
+            'enable_epub_build',
             # Privacy
             'privacy_level',
             # 'version_privacy_level',
@@ -150,16 +161,16 @@ class ProjectAdvancedForm(ProjectTriggerBuildMixin, ProjectForm):
             # Fringe
             'analytics_code',
             # Version Support
-            'num_major', 'num_minor', 'num_point',
+            # 'num_major', 'num_minor', 'num_point',
         )
 
     def clean_conf_py_file(self):
-        file = self.cleaned_data.get('conf_py_file', '').strip()
-        if file and not 'conf.py' in file:
+        filename = self.cleaned_data.get('conf_py_file', '').strip()
+        if filename and 'conf.py' not in filename:
             raise forms.ValidationError(
                 _('Your configuration file is invalid, make sure it contains '
                   'conf.py in it.'))
-        return file
+        return filename
 
 
 class UpdateProjectForm(ProjectTriggerBuildMixin, ProjectBasicsForm,
@@ -171,16 +182,19 @@ class UpdateProjectForm(ProjectTriggerBuildMixin, ProjectBasicsForm,
             # Basics
             'name', 'repo', 'repo_type',
             # Extra
+            # 'allow_comments',
+            # 'comment_moderation',
             'description',
             'documentation_type',
             'language', 'programming_language',
             'project_url',
-            'canonical_url',
             'tags',
         )
 
 
 class DualCheckboxWidget(forms.CheckboxInput):
+
+    """Checkbox with link to the version's built documentation"""
 
     def __init__(self, version, attrs=None, check_test=bool):
         super(DualCheckboxWidget, self).__init__(attrs, check_test)
@@ -203,6 +217,8 @@ class DualCheckboxWidget(forms.CheckboxInput):
 
 class BaseVersionsForm(forms.Form):
 
+    """Form for versions page"""
+
     def save(self):
         versions = self.project.versions.all()
         for version in versions:
@@ -213,12 +229,13 @@ class BaseVersionsForm(forms.Form):
             self.project.save()
 
     def save_version(self, version):
+        """Save version if there has been a change, trigger a rebuild"""
         new_value = self.cleaned_data.get('version-%s' % version.slug, None)
         privacy_level = self.cleaned_data.get('privacy-%s' % version.slug,
                                               None)
         if ((new_value is None or
-             new_value == version.active)
-            and (privacy_level is None or
+             new_value == version.active) and (
+                 privacy_level is None or
                  privacy_level == version.privacy_level)):
             return
         version.active = new_value
@@ -229,10 +246,11 @@ class BaseVersionsForm(forms.Form):
 
 
 def build_versions_form(project):
+    """Versions form with a list of versions and version privacy levels"""
     attrs = {
         'project': project,
     }
-    versions_qs = project.versions.all() # Admin page, so show all versions
+    versions_qs = project.versions.all()  # Admin page, so show all versions
     active = versions_qs.filter(active=True)
     if active.exists():
         choices = [(version.slug, version.verbose_name) for version in active]
@@ -244,7 +262,7 @@ def build_versions_form(project):
     for version in versions_qs:
         field_name = 'version-%s' % version.slug
         privacy_name = 'privacy-%s' % version.slug
-        if version.type == 'tag':
+        if version.type == TAG:
             label = "%s (%s)" % (version.verbose_name, version.identifier[:8])
         else:
             label = version.verbose_name
@@ -274,19 +292,20 @@ class BaseUploadHTMLForm(forms.Form):
 
     def clean(self):
         version_slug = self.cleaned_data['version']
-        file = self.request.FILES['content']
+        filename = self.request.FILES['content']
         version = self.project.versions.get(slug=version_slug)
 
         # Validation
         if version.active and not self.cleaned_data.get('overwrite', False):
             raise forms.ValidationError(_("That version is already active!"))
-        if not file.name.endswith('zip'):
+        if not filename.name.endswith('zip'):
             raise forms.ValidationError(_("Must upload a zip file."))
 
         return self.cleaned_data
 
 
 def build_upload_html_form(project):
+    """Upload HTML form with list of versions to upload HTML for"""
     attrs = {
         'project': project,
     }
@@ -302,27 +321,47 @@ def build_upload_html_form(project):
 
 
 class SubprojectForm(forms.Form):
+
+    """Project subproject form"""
+
     subproject = forms.CharField()
+    alias = forms.CharField(required=False)
 
     def __init__(self, *args, **kwargs):
-        self.parent = kwargs.pop('parent', None)
+        self.user = kwargs.pop('user')
+        self.parent = kwargs.pop('parent')
         super(SubprojectForm, self).__init__(*args, **kwargs)
 
     def clean_subproject(self):
+        """Normalize subproject field
+
+        Does lookup on against :py:cls:`Project` to ensure matching project
+        exists. Return the :py:cls:`Project` object instead.
+        """
         subproject_name = self.cleaned_data['subproject']
         subproject_qs = Project.objects.filter(slug=subproject_name)
         if not subproject_qs.exists():
             raise forms.ValidationError((_("Project %(name)s does not exist")
                                          % {'name': subproject_name}))
-        self.subproject = subproject_qs[0]
-        return subproject_name
+        subproject = subproject_qs.first()
+        if not AdminPermission.is_admin(self.user, subproject):
+            raise forms.ValidationError(_(
+                'You need to be admin of {name} in order to add it as '
+                'a subproject.'.format(name=subproject_name)))
+        return subproject
 
     def save(self):
-        relationship = self.parent.add_subproject(self.subproject)
+        relationship = self.parent.add_subproject(
+            self.cleaned_data['subproject'],
+            alias=self.cleaned_data['alias'],
+        )
         return relationship
 
 
 class UserForm(forms.Form):
+
+    """Project user association form"""
+
     user = forms.CharField()
 
     def __init__(self, *args, **kwargs):
@@ -346,6 +385,9 @@ class UserForm(forms.Form):
 
 
 class EmailHookForm(forms.Form):
+
+    """Project email notification form"""
+
     email = forms.EmailField()
 
     def __init__(self, *args, **kwargs):
@@ -363,6 +405,9 @@ class EmailHookForm(forms.Form):
 
 
 class WebHookForm(forms.Form):
+
+    """Project webhook form"""
+
     url = forms.URLField()
 
     def __init__(self, *args, **kwargs):
@@ -378,7 +423,11 @@ class WebHookForm(forms.Form):
         self.project.webhook_notifications.add(self.webhook)
         return self.project
 
+
 class TranslationForm(forms.Form):
+
+    """Project translation form"""
+
     project = forms.CharField()
 
     def __init__(self, *args, **kwargs):
@@ -386,20 +435,27 @@ class TranslationForm(forms.Form):
         super(TranslationForm, self).__init__(*args, **kwargs)
 
     def clean_project(self):
-        subproject_name = self.cleaned_data['project']
-        subproject_qs = Project.objects.filter(slug=subproject_name)
-        if not subproject_qs.exists():
+        translation_name = self.cleaned_data['project']
+        translation_qs = Project.objects.filter(slug=translation_name)
+        if not translation_qs.exists():
             raise forms.ValidationError((_("Project %(name)s does not exist")
-                                         % {'name': subproject_name}))
-        self.subproject = subproject_qs[0]
-        return subproject_name
+                                         % {'name': translation_name}))
+        if translation_qs.first().language == self.parent.language:
+            err = ("Both projects have a language of `%s`. "
+                   "Please choose one with another language" % self.parent.language)
+            raise forms.ValidationError(_(err))
+
+        self.translation = translation_qs.first()
+        return translation_name
 
     def save(self):
-        project = self.parent.translations.add(self.subproject)
+        project = self.parent.translations.add(self.translation)
         return project
 
 
 class RedirectForm(forms.ModelForm):
+
+    """Form for project redirects"""
 
     class Meta:
         model = Redirect
@@ -409,7 +465,7 @@ class RedirectForm(forms.ModelForm):
         self.project = kwargs.pop('project', None)
         super(RedirectForm, self).__init__(*args, **kwargs)
 
-    def save(self, *args, **kwargs):
+    def save(self, **_):
         redirect = Redirect.objects.create(
             project=self.project,
             redirect_type=self.cleaned_data['redirect_type'],
@@ -418,3 +474,33 @@ class RedirectForm(forms.ModelForm):
         )
         return redirect
 
+
+class DomainForm(forms.ModelForm):
+    project = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta:
+        model = Domain
+        exclude = ['machine', 'cname', 'count']
+
+    def __init__(self, *args, **kwargs):
+        self.project = kwargs.pop('project', None)
+        super(DomainForm, self).__init__(*args, **kwargs)
+
+    def clean_project(self):
+        return self.project
+
+    def clean_domain(self):
+        parsed = urlparse(self.cleaned_data['domain'])
+        if parsed.scheme or parsed.netloc:
+            domain_string = parsed.netloc
+        else:
+            domain_string = parsed.path
+        return domain_string
+
+    def clean_canonical(self):
+        canonical = self.cleaned_data['canonical']
+        if canonical and Domain.objects.filter(
+            project=self.project, canonical=True
+        ).exclude(domain=self.cleaned_data['domain']).exists():
+            raise forms.ValidationError(_(u'Only 1 Domain can be canonical at a time.'))
+        return canonical

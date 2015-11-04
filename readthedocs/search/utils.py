@@ -16,7 +16,8 @@ def process_mkdocs_json(version, build_dir=True):
     if build_dir:
         full_path = version.project.full_json_path(version.slug)
     else:
-        full_path = version.project.get_production_media_path(type='json', version_slug=version.slug, include_file=False)
+        full_path = version.project.get_production_media_path(
+            type_='json', version_slug=version.slug, include_file=False)
 
     html_files = []
     for root, dirs, files in os.walk(full_path):
@@ -32,9 +33,13 @@ def process_mkdocs_json(version, build_dir=True):
             title = sections[0]['title']
         except IndexError:
             title = relative_path
-        page_list.append(
-            {'content': html, 'path': relative_path, 'title': title, 'headers': headers, 'sections': sections}
-        )
+        page_list.append({
+            'content': html,
+            'path': relative_path,
+            'title': title,
+            'headers': headers,
+            'sections': sections,
+        })
     return page_list
 
 
@@ -55,7 +60,14 @@ def parse_path_from_file(documentation_type, file_path):
 
     page_json = json.loads(content)
     path = page_json['url']
+
+    # The URLs here should be of the form "path/index". So we need to
+    # convert:
+    #   "path/" => "path/index"
+    #   "path/index.html" => "path/index"
+    #   "/path/index" => "path/index"
     path = re.sub('/$', '/index', path)
+    path = re.sub('\.html$', '', path)
     path = re.sub('^/', '', path)
 
     return path

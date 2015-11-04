@@ -3,11 +3,9 @@ import logging
 
 import requests
 
-from builds.models import Version
-from projects.utils import slugify_uniquely
-from search.indexes import PageIndex, ProjectIndex, SectionIndex
-
-from betterversion.better import version_windows, BetterVersion
+from readthedocs.builds.constants import NON_REPOSITORY_VERSIONS
+from readthedocs.builds.models import Version
+from readthedocs.search.indexes import PageIndex, ProjectIndex, SectionIndex
 
 log = logging.getLogger(__name__)
 
@@ -43,18 +41,17 @@ def sync_versions(project, versions, type):
                     type=type,
                     machine=False,
                 )
-                log.info("(Sync Versions) Updated Version: [%s=%s] " % (version['verbose_name'], version['identifier']))
+                log.info("(Sync Versions) Updated Version: [%s=%s] " % (
+                    version['verbose_name'], version['identifier']))
         else:
             # New Version
-            slug = slugify_uniquely(Version, version['verbose_name'], 'slug', 255, project=project)
-            Version.objects.create(
+            created_version = Version.objects.create(
                 project=project,
-                slug=slug,
                 type=type,
                 identifier=version['identifier'],
                 verbose_name=version['verbose_name'],
             )
-            added.add(slug)
+            added.add(created_version.slug)
     if added:
         log.info("(Sync Versions) Added Versions: [%s] " % ' '.join(added))
     return added
@@ -71,11 +68,11 @@ def delete_versions(project, version_data):
     if 'branches' in version_data:
         for version in version_data['branches']:
             current_versions.append(version['identifier'])
-    to_delete_qs = project.versions.exclude(
-        identifier__in=current_versions).exclude(
-        uploaded=True).exclude(
-        active=True).exclude(
-        slug='latest')
+    to_delete_qs = project.versions.all()
+    to_delete_qs = to_delete_qs.exclude(identifier__in=current_versions)
+    to_delete_qs = to_delete_qs.exclude(uploaded=True)
+    to_delete_qs = to_delete_qs.exclude(active=True)
+    to_delete_qs = to_delete_qs.exclude(slug__in=NON_REPOSITORY_VERSIONS)
 
     if to_delete_qs.count():
         ret_val = {obj.slug for obj in to_delete_qs}
@@ -86,15 +83,16 @@ def delete_versions(project, version_data):
         return set()
 
 
-def index_search_request(version, page_list, commit):
+def index_search_request(version, page_list, commit, project_scale, page_scale,
+                         section=True, delete=True):
     log_msg = ' '.join([page['path'] for page in page_list])
     log.info("(Server Search) Indexing Pages: %s [%s]" % (
         version.project.slug, log_msg))
     project = version.project
     page_obj = PageIndex()
-    project_scale = 1
+    section_obj = SectionIndex()
 
-    #tags = [tag.name for tag in project.tags.all()]
+    # tags = [tag.name for tag in project.tags.all()]
 
     project_obj = ProjectIndex()
     project_obj.index_document(data={
@@ -106,13 +104,13 @@ def index_search_request(version, page_list, commit):
         'author': [user.username for user in project.users.all()],
         'url': project.get_absolute_url(),
         'tags': None,
-        '_boost': project_scale,
+        'weight': project_scale,
     })
 
     index_list = []
+    section_index_list = []
     for page in page_list:
         log.debug("(API Index) %s:%s" % (project.slug, page['path']))
-        page_scale = 1
         page_id = hashlib.md5('%s-%s-%s' % (project.slug, version.slug, page['path'])).hexdigest()
         index_list.append({
             'id': page_id,
@@ -124,27 +122,43 @@ def index_search_request(version, page_list, commit):
             'content': page['content'],
             'taxonomy': None,
             'commit': commit,
-            '_boost': page_scale + project_scale,
+            'weight': page_scale + project_scale,
         })
+        if section:
+            for section in page['sections']:
+                section_index_list.append({
+                    'id': hashlib.md5(
+                        '%s-%s-%s-%s' % (project.slug, version.slug,
+                                         page['path'], section['id'])
+                    ).hexdigest(),
+                    'project': project.slug,
+                    'version': version.slug,
+                    'path': page['path'],
+                    'page_id': section['id'],
+                    'title': section['title'],
+                    'content': section['content'],
+                    'weight': page_scale,
+                })
+            section_obj.bulk_index(section_index_list, parent=page_id, routing=project.slug)
 
     page_obj.bulk_index(index_list, parent=project.slug)
 
-    log.info("(Server Search) Deleting files not in commit: %s" % commit)
-    # Figure this out later
-    delete_query = {
-        # ES .90 doesn't wrap this 
-        #"query": {
-        "bool": {
-            "must": [
-                {"term": {"project": project.slug, }},
-                {"term": {"version": version.slug, }},
-            ],
-            "must_not": {
-                "term": {
-                    "commit": commit
+    if delete:
+        log.info("(Server Search) Deleting files not in commit: %s" % commit)
+        # TODO: AK Make sure this works
+        delete_query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"project": project.slug, }},
+                        {"term": {"version": version.slug, }},
+                    ],
+                    "must_not": {
+                        "term": {
+                            "commit": commit
+                        }
+                    }
                 }
             }
         }
-        #}
-    }
-    page_obj.delete_document(body=delete_query)
+        page_obj.delete_document(body=delete_query)
