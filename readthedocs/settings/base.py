@@ -128,7 +128,6 @@ AUTHENTICATION_BACKENDS = (
 )
 
 # All auth
-
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_AUTHENTICATION_METHOD = "username_email"
@@ -169,9 +168,6 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.request",
     # Read the Docs processor
     "readthedocs.core.context_processors.readthedocs_processor",
-    # allauth specific context processors
-    "allauth.account.context_processors.account",
-    "allauth.socialaccount.context_processors.socialaccount",
 )
 
 INSTALLED_APPS = [
@@ -193,6 +189,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'copyright',
+    'textclassifier',
+    'annoying',
 
     # Celery bits
     'djcelery',
@@ -200,8 +198,6 @@ INSTALLED_APPS = [
     # daniellindsleyrocksdahouse
     'haystack',
     'tastypie',
-
-
 
     # our apps
     'readthedocs.bookmarks',
@@ -225,7 +221,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.github',
     'allauth.socialaccount.providers.bitbucket',
-    # 'allauth.socialaccount.providers.twitter',
+    'allauth.socialaccount.providers.bitbucket_oauth2',
 ]
 
 REST_FRAMEWORK = {
@@ -258,6 +254,8 @@ CELERY_ROUTES = {
 DEFAULT_FROM_EMAIL = "no-reply@readthedocs.org"
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 SESSION_COOKIE_DOMAIN = 'readthedocs.org'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
 
 HAYSTACK_CONNECTIONS = {
     'default': {
