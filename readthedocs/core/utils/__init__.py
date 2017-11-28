@@ -1,48 +1,71 @@
+"""Common utilty functions"""
+
+from __future__ import absolute_import
+
+import errno
 import getpass
 import logging
 import os
-
-from urlparse import urlparse
+import re
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
-from django.template.loader import get_template
+from django.utils import six
+from django.utils.functional import allow_lazy
+from django.utils.safestring import SafeText, mark_safe
+from django.utils.text import slugify as slugify_base
+from future.backports.urllib.parse import urlparse
+from celery import group, chord
 
+from ..tasks import send_email_task
 from readthedocs.builds.constants import LATEST
-from readthedocs.builds.constants import LATEST_VERBOSE_NAME
-from readthedocs.builds.models import Build
+from readthedocs.doc_builder.constants import DOCKER_LIMITS
+
 
 log = logging.getLogger(__name__)
 
 SYNC_USER = getattr(settings, 'SYNC_USER', getpass.getuser())
 
 
-def run_on_app_servers(command):
+def broadcast(type, task, args, kwargs=None, callback=None):  # pylint: disable=redefined-builtin
     """
-    A helper to copy a single file across app servers
+    Run a broadcast across our servers.
+
+    Returns a task group that can be checked for results.
+
+    `callback` should be a task signature that will be run once,
+    after all of the broadcast tasks have finished running.
     """
-    log.info("Running %s on app servers" % command)
-    ret_val = 0
-    if getattr(settings, "MULTIPLE_APP_SERVERS", None):
-        for server in settings.MULTIPLE_APP_SERVERS:
-            ret = os.system("ssh %s@%s %s" % (SYNC_USER, server, command))
-            if ret != 0:
-                ret_val = ret
-        return ret_val
+    assert type in ['web', 'app', 'build']
+    if kwargs is None:
+        kwargs = {}
+    default_queue = getattr(settings, 'CELERY_DEFAULT_QUEUE', 'celery')
+    if type in ['web', 'app']:
+        servers = getattr(settings, "MULTIPLE_APP_SERVERS", [default_queue])
+    elif type in ['build']:
+        servers = getattr(settings, "MULTIPLE_BUILD_SERVERS", [default_queue])
+
+    tasks = []
+    for server in servers:
+        task_sig = task.s(*args, **kwargs).set(queue=server)
+        tasks.append(task_sig)
+    if callback:
+        task_promise = chord(tasks, callback).apply_async()
     else:
-        ret = os.system(command)
-        return ret
+        # Celery's Group class does some special handling when an iterable with
+        # len() == 1 is passed in. This will be hit if there is only one server
+        # defined in the above queue lists
+        if len(tasks) > 1:
+            task_promise = group(*tasks).apply_async()
+        else:
+            task_promise = group(tasks).apply_async()
+    return task_promise
 
 
 def clean_url(url):
     parsed = urlparse(url)
-    if parsed.scheme:
-        scheme, netloc = parsed.scheme, parsed.netloc
-    elif parsed.netloc:
-        scheme, netloc = "http", parsed.netloc
-    else:
-        scheme, netloc = "http", parsed.path
-    return netloc
+    if parsed.scheme or parsed.netloc:
+        return parsed.netloc
+    return parsed.path
 
 
 def cname_to_slug(host):
@@ -54,11 +77,14 @@ def cname_to_slug(host):
 
 
 def trigger_build(project, version=None, record=True, force=False, basic=False):
-    """
-    An API to wrap the triggering of a build.
+    """Trigger build for project and version
+
+    If project has a ``build_queue``, execute task on this build queue. Queue
+    will be prefixed with ``build-`` to unify build queue names.
     """
     # Avoid circular import
-    from readthedocs.projects.tasks import update_docs
+    from readthedocs.projects.tasks import UpdateDocsTask
+    from readthedocs.builds.models import Build
 
     if project.skip:
         return None
@@ -66,6 +92,15 @@ def trigger_build(project, version=None, record=True, force=False, basic=False):
     if not version:
         version = project.versions.get(slug=LATEST)
 
+    kwargs = dict(
+        pk=project.pk,
+        version_pk=version.pk,
+        record=record,
+        force=force,
+        basic=basic,
+    )
+
+    build = None
     if record:
         build = Build.objects.create(
             project=project,
@@ -74,50 +109,72 @@ def trigger_build(project, version=None, record=True, force=False, basic=False):
             state='triggered',
             success=True,
         )
-        update_docs.delay(pk=project.pk, version_pk=version.pk, record=record,
-                          force=force, basic=basic, build_pk=build.pk)
-    else:
-        build = None
-        update_docs.delay(pk=project.pk, version_pk=version.pk, record=record,
-                          force=force, basic=basic)
+        kwargs['build_pk'] = build.pk
+
+    options = {}
+    if project.build_queue:
+        options['queue'] = project.build_queue
+
+    # Set per-task time limit
+    time_limit = DOCKER_LIMITS['time']
+    try:
+        if project.container_time_limit:
+            time_limit = int(project.container_time_limit)
+    except ValueError:
+        pass
+    # Add 20% overhead to task, to ensure the build can timeout and the task
+    # will cleanly finish.
+    options['soft_time_limit'] = time_limit
+    options['time_limit'] = int(time_limit * 1.2)
+
+    update_docs = UpdateDocsTask()
+    update_docs.apply_async(kwargs=kwargs, **options)
 
     return build
 
 
 def send_email(recipient, subject, template, template_html, context=None,
-               request=None):
-    '''
-    Send multipart email
+               request=None):  # pylint: disable=unused-argument
+    """Alter context passed in and call email send task
 
-    recipient
-        Email recipient address
+    .. seealso::
 
-    subject
-        Email subject header
+        Task :py:func:`readthedocs.core.tasks.send_email_task`
+            Task that handles templating and sending email message
+    """
+    if context is None:
+        context = {}
+    context['uri'] = '{scheme}://{host}'.format(
+        scheme='https', host=settings.PRODUCTION_DOMAIN)
+    send_email_task.delay(recipient, subject, template, template_html, context)
 
-    template
-        Plain text template to send
 
-    template_html
-        HTML template to send as new message part
+def slugify(value, *args, **kwargs):
+    """Add a DNS safe option to slugify
 
-    context
-        A dictionary to pass into the template calls
+    :param dns_safe: Remove underscores from slug as well
+    """
+    dns_safe = kwargs.pop('dns_safe', True)
+    value = slugify_base(value, *args, **kwargs)
+    if dns_safe:
+        value = mark_safe(re.sub('[-_]+', '-', value))
+    return value
 
-    request
-        Request object for determining absolute URL
-    '''
-    if request:
-        scheme = 'https' if request.is_secure() else 'http'
-        context['uri'] = '{scheme}://{host}'.format(scheme=scheme,
-                                                    host=request.get_host())
-    ctx = {}
-    ctx.update(context)
-    msg = EmailMultiAlternatives(
-        subject,
-        get_template(template).render(ctx),
-        settings.DEFAULT_FROM_EMAIL,
-        [recipient]
-    )
-    msg.attach_alternative(get_template(template_html).render(ctx), 'text/html')
-    msg.send()
+
+slugify = allow_lazy(slugify, six.text_type, SafeText)
+
+
+def safe_makedirs(directory_name):
+    """
+    Safely create a directory.
+
+    Makedirs has an issue where it has a race condition around
+    checking for a directory and then creating it.
+    This catches the exception in the case where the dir already exists.
+    """
+    try:
+        os.makedirs(directory_name)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            pass
+        raise

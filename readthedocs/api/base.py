@@ -1,9 +1,11 @@
+"""API resources"""
+from __future__ import absolute_import
+from builtins import object
 import logging
 import json
 import redis
 
 from django.contrib.auth.models import User
-from django.conf import settings
 from django.conf.urls import url
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
@@ -16,10 +18,9 @@ from tastypie.http import HttpCreated, HttpApplicationError
 from tastypie.utils import dict_strip_unicode_keys, trailing_slash
 
 from readthedocs.builds.constants import LATEST
-from readthedocs.builds.models import Build, Version
+from readthedocs.builds.models import Version
 from readthedocs.core.utils import trigger_build
 from readthedocs.projects.models import Project, ImportedFile
-from readthedocs.restapi.views.footer_views import get_version_compare_data
 
 from .utils import SearchMixin, PostAuthentication
 
@@ -27,6 +28,9 @@ log = logging.getLogger(__name__)
 
 
 class ProjectResource(ModelResource, SearchMixin):
+
+    """API resource for Project model."""
+
     users = fields.ToManyField('readthedocs.api.base.UserResource', 'users')
 
     class Meta(object):
@@ -46,7 +50,6 @@ class ProjectResource(ModelResource, SearchMixin):
         return super(ProjectResource, self).get_object_list(request)
 
     def dehydrate(self, bundle):
-        bundle.data['subdomain'] = "http://%s/" % bundle.obj.subdomain
         bundle.data['downloads'] = bundle.obj.get_downloads()
         return bundle
 
@@ -91,10 +94,10 @@ class ProjectResource(ModelResource, SearchMixin):
             self._sync_versions(project, data['tags'])
             self._sync_versions(project, data['branches'])
             deleted_versions = self._delete_versions(project, data)
-        except Exception, e:
+        except Exception as e:
             return self.create_response(
                 request,
-                {'exception': e.message},
+                {'exception': str(e)},
                 response_class=HttpApplicationError,
             )
         return self.create_response(request, deleted_versions)
@@ -116,6 +119,9 @@ class ProjectResource(ModelResource, SearchMixin):
 
 
 class VersionResource(ModelResource):
+
+    """API resource for Version model."""
+
     project = fields.ForeignKey(ProjectResource, 'project', full=True)
 
     class Meta(object):
@@ -130,28 +136,9 @@ class VersionResource(ModelResource):
             "active": ALL,
         }
 
-    # Find a better name for this before including it.
-    # def dehydrate(self, bundle):
-    #     bundle.data['subdomain'] = "http://%s/en/%s/" % (
-    #         bundle.obj.project.subdomain, bundle.obj.slug
-    #     )
-    #     return bundle
-
     def get_object_list(self, request):
         self._meta.queryset = Version.objects.api(user=request.user)
         return super(VersionResource, self).get_object_list(request)
-
-    def version_compare(self, request, project_slug, base=None, **kwargs):
-        project = get_object_or_404(Project, slug=project_slug)
-        if base and base != LATEST:
-            try:
-                base_version = project.versions.get(slug=base)
-            except (Version.DoesNotExist, TypeError):
-                base_version = None
-        else:
-            base_version = None
-        ret_val = get_version_compare_data(project, base_version)
-        return self.create_response(request, ret_val)
 
     def build_version(self, request, **kwargs):
         project = get_object_or_404(Project, slug=kwargs['project_slug'])
@@ -166,20 +153,11 @@ class VersionResource(ModelResource):
                 % self._meta.resource_name,
                 self.wrap_view('get_schema'),
                 name="api_get_schema"),
-            url((r"^(?P<resource_name>%s)/(?P<project_slug>[a-z-_]+)/highest/"
-                 r"(?P<base>.+)/$")
-                % self._meta.resource_name,
-                self.wrap_view('version_compare'),
-                name="version_compare"),
-            url(r"^(?P<resource_name>%s)/(?P<project_slug>[a-z-_]+)/highest/$"
-                % self._meta.resource_name,
-                self.wrap_view('version_compare'),
-                name="version_compare"),
             url(r"^(?P<resource_name>%s)/(?P<project__slug>[a-z-_]+[a-z0-9-_]+)/$"  # noqa
                 % self._meta.resource_name,
                 self.wrap_view('dispatch_list'),
                 name="api_version_list"),
-            url((r"^(?P<resource_name>%s)/(?P<project_slug>[a-z-_]+)/(?P"
+            url((r"^(?P<resource_name>%s)/(?P<project_slug>[a-z-_]+[a-z0-9-_]+)/(?P"
                  r"<version_slug>[a-z0-9-_.]+)/build/$")
                 % self._meta.resource_name,
                 self.wrap_view('build_version'),
@@ -188,6 +166,9 @@ class VersionResource(ModelResource):
 
 
 class FileResource(ModelResource, SearchMixin):
+
+    """API resource for ImportedFile model."""
+
     project = fields.ForeignKey(ProjectResource, 'project', full=True)
 
     class Meta(object):
@@ -215,7 +196,7 @@ class FileResource(ModelResource, SearchMixin):
                 name="api_get_anchor"),
         ]
 
-    def get_anchor(self, request, **kwargs):
+    def get_anchor(self, request, **__):
         self.method_check(request, allowed=['get'])
         self.is_authenticated(request)
         self.throttle_check(request)
@@ -236,6 +217,8 @@ class FileResource(ModelResource, SearchMixin):
 
 
 class UserResource(ModelResource):
+
+    """Read-only API resource for User model."""
 
     class Meta(object):
         allowed_methods = ['get']

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+from __future__ import absolute_import
 import json
 import gc
 import logging
@@ -108,7 +109,7 @@ def forwards_move_repos(apps, schema_editor):
             else:
                 new_repo.clone_url = data.get('clone_url')
             new_repo.json = json.dumps(data)
-        except SyntaxError, ValueError:
+        except (SyntaxError, ValueError) as e:
             pass
         new_repo.save()
         log.info('Migrated project: %s', project.name)
@@ -149,7 +150,7 @@ def forwards_move_repos(apps, schema_editor):
                 new_repo.clone_url = clone_urls.get('ssh', project.git_url)
             else:
                 new_repo.clone_url = clone_urls.get('https', project.html_url)
-        except SyntaxError, ValueError:
+        except (SyntaxError, ValueError) as e:
             pass
         new_repo.save()
         log.info('Migrated project: %s', project.name)

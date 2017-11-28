@@ -1,32 +1,32 @@
 """Public project views"""
 
+from __future__ import absolute_import
+from collections import OrderedDict
 import operator
 import os
 import json
 import logging
 import mimetypes
-import md5
 
 from django.core.urlresolvers import reverse
 from django.core.cache import cache
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.models import User
+from django.contrib.staticfiles.templatetags.staticfiles import static
 from django.http import HttpResponse, HttpResponseRedirect, Http404
 from django.shortcuts import get_object_or_404, render_to_response
 from django.template import RequestContext
-from django.views.decorators.cache import cache_control
+from django.views.decorators.cache import never_cache
 from django.views.generic import ListView, DetailView
-from django.utils.datastructures import SortedDict
-from django.views.decorators.cache import cache_page
 
 from taggit.models import Tag
 import requests
 
 from .base import ProjectOnboardMixin
 from readthedocs.builds.constants import LATEST
-from readthedocs.builds.filters import VersionSlugFilter
 from readthedocs.builds.models import Version
+from readthedocs.builds.views import BuildTriggerMixin
 from readthedocs.projects.models import Project, ImportedFile
 from readthedocs.search.indexes import PageIndex
 from readthedocs.search.views import LOG_TEMPLATE
@@ -38,7 +38,7 @@ mimetypes.add_type("application/epub+zip", ".epub")
 
 class ProjectIndex(ListView):
 
-    """List view of public :py:cls:`Project` instances"""
+    """List view of public :py:class:`Project` instances"""
 
     model = Project
 
@@ -68,7 +68,7 @@ class ProjectIndex(ListView):
 project_index = ProjectIndex.as_view()
 
 
-class ProjectDetailView(ProjectOnboardMixin, DetailView):
+class ProjectDetailView(BuildTriggerMixin, ProjectOnboardMixin, DetailView):
 
     """Display project onboard steps"""
 
@@ -84,8 +84,6 @@ class ProjectDetailView(ProjectOnboardMixin, DetailView):
         project = self.get_object()
         context['versions'] = Version.objects.public(
             user=self.request.user, project=project)
-        context['filter'] = VersionSlugFilter(self.request.GET,
-                                              queryset=context['versions'])
 
         protocol = 'http'
         if self.request.is_secure():
@@ -106,52 +104,34 @@ class ProjectDetailView(ProjectOnboardMixin, DetailView):
         return context
 
 
-def _badge_return(redirect, url):
-    if redirect:
-        return HttpResponseRedirect(url)
-    else:
-        response = requests.get(url)
-        http_response = HttpResponse(response.content,
-                                     content_type="image/svg+xml")
-        http_response['Cache-Control'] = 'no-cache'
-        http_response['Etag'] = md5.new(url)
-        return http_response
-
-
-@cache_control(no_cache=True)
-def project_badge(request, project_slug, redirect=True):
+@never_cache
+def project_badge(request, project_slug):
     """Return a sweet badge for the project"""
+    badge_path = "projects/badges/%s.svg"
     version_slug = request.GET.get('version', LATEST)
-    style = request.GET.get('style', 'flat')
     try:
         version = Version.objects.public(request.user).get(
             project__slug=project_slug, slug=version_slug)
     except Version.DoesNotExist:
-        url = (
-            'https://img.shields.io/badge/docs-unknown%20version-yellow.svg?style={style}'
-            .format(style=style))
-        return _badge_return(redirect, url)
+        url = static(badge_path % "unknown")
+        return HttpResponseRedirect(url)
     version_builds = version.builds.filter(type='html', state='finished').order_by('-date')
     if not version_builds.exists():
-        url = (
-            'https://img.shields.io/badge/docs-no%20builds-yellow.svg?style={style}'
-            .format(style=style))
-        return _badge_return(redirect, url)
+        url = static(badge_path % "unknown")
+        return HttpResponseRedirect(url)
     last_build = version_builds[0]
     if last_build.success:
-        color = 'brightgreen'
+        url = static(badge_path % "passing")
     else:
-        color = 'red'
-    url = 'https://img.shields.io/badge/docs-%s-%s.svg?style=%s' % (
-        version.slug.replace('-', '--'), color, style)
-    return _badge_return(redirect, url)
+        url = static(badge_path % "failing")
+    return HttpResponseRedirect(url)
 
 
 def project_downloads(request, project_slug):
     """A detail view for a project with various dataz"""
     project = get_object_or_404(Project.objects.protected(request.user), slug=project_slug)
     versions = Version.objects.public(user=request.user, project=project)
-    version_data = SortedDict()
+    version_data = OrderedDict()
     for version in versions:
         data = version.get_downloads()
         # Don't show ones that have no downloads.
@@ -248,11 +228,10 @@ def version_filter_autocomplete(request, project_slug):
     queryset = Project.objects.public(request.user)
     project = get_object_or_404(queryset, slug=project_slug)
     versions = Version.objects.public(request.user)
-    version_filter = VersionSlugFilter(request.GET, queryset=versions)
     resp_format = request.GET.get('format', 'json')
 
     if resp_format == 'json':
-        names = version_filter.qs.values_list('slug', flat=True)
+        names = versions.values_list('slug', flat=True)
         json_response = json.dumps(list(names))
         return HttpResponse(json_response, content_type='text/javascript')
     elif resp_format == 'html':
@@ -261,12 +240,10 @@ def version_filter_autocomplete(request, project_slug):
             {
                 'project': project,
                 'versions': versions,
-                'filter': version_filter,
             },
             context_instance=RequestContext(request),
         )
-    else:
-        return HttpResponse(status=400)
+    return HttpResponse(status=400)
 
 
 def file_autocomplete(request, project_slug):
@@ -347,7 +324,7 @@ def elastic_project_search(request, project_slug):
     if results:
         # pre and post 1.0 compat
         for num, hit in enumerate(results['hits']['hits']):
-            for key, val in hit['fields'].items():
+            for key, val in list(hit['fields'].items()):
                 if isinstance(val, list):
                     results['hits']['hits'][num]['fields'][key] = val[0]
 
@@ -373,8 +350,6 @@ def project_versions(request, project_slug):
     versions = Version.objects.public(user=request.user, project=project, only_active=False)
     active_versions = versions.filter(active=True)
     inactive_versions = versions.filter(active=False)
-    inactive_filter = VersionSlugFilter(request.GET, queryset=inactive_versions)
-    active_filter = VersionSlugFilter(request.GET, queryset=active_versions)
 
     # If there's a wiped query string, check the string against the versions
     # list and display a success message. Deleting directories doesn't know how
@@ -387,8 +362,8 @@ def project_versions(request, project_slug):
     return render_to_response(
         'projects/project_version_list.html',
         {
-            'inactive_filter': inactive_filter,
-            'active_filter': active_filter,
+            'inactive_versions': inactive_versions,
+            'active_versions': active_versions,
             'project': project,
         },
         context_instance=RequestContext(request)
@@ -414,9 +389,9 @@ def project_analytics(request, project_slug):
             analytics = None
 
     if analytics:
-        page_list = list(reversed(sorted(analytics['page'].items(),
+        page_list = list(reversed(sorted(list(analytics['page'].items()),
                                          key=operator.itemgetter(1))))
-        version_list = list(reversed(sorted(analytics['version'].items(),
+        version_list = list(reversed(sorted(list(analytics['version'].items()),
                                             key=operator.itemgetter(1))))
     else:
         page_list = []

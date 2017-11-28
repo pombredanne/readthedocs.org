@@ -1,9 +1,10 @@
 """Payment utility functions
 
 These are mostly one-off functions. Define the bulk of Stripe operations on
-:py:cls:`readthedocs.payments.forms.StripeResourceMixin`.
+:py:class:`readthedocs.payments.forms.StripeResourceMixin`.
 """
 
+from __future__ import absolute_import
 import stripe
 from django.conf import settings
 

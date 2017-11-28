@@ -1,3 +1,7 @@
+"""Rebuild documentation for all projects"""
+
+from __future__ import absolute_import
+from __future__ import print_function
 from glob import glob
 import os
 import logging
@@ -10,9 +14,8 @@ log = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    """Custom management command to rebuild documentation for all projects on
-    the site. Invoked via ``./manage.py update_repos``.
-    """
+
+    help = __doc__
 
     def handle(self, *args, **options):
         doc_index = {}
@@ -30,4 +33,4 @@ class Command(BaseCommand):
             'MEDIA_URL': settings.MEDIA_URL,
         }
         html = template_loader.get_template('archive/index.html').render(context)
-        print html
+        print(html)

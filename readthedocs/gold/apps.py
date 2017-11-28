@@ -1,18 +1,12 @@
-"""Gold application config for establishing signals"""
+"""Django app configuration for the Gold Membership app."""
 
-import logging
-
+from __future__ import absolute_import
 from django.apps import AppConfig
-
-log = logging.getLogger(__name__)
 
 
 class GoldAppConfig(AppConfig):
     name = 'readthedocs.gold'
-    verbose_name = 'Read the Docs Gold'
+    verbose_name = 'Gold'
 
     def ready(self):
-        if hasattr(self, 'already_run'):
-            return
-        self.already_run = True
         import readthedocs.gold.signals  # noqa

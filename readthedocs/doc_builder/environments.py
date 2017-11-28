@@ -1,7 +1,8 @@
-'''
-Documentation Builder Environments
-'''
+"""Documentation Builder Environments"""
 
+from __future__ import absolute_import
+from builtins import str
+from builtins import object
 import os
 import re
 import sys
@@ -12,37 +13,44 @@ import socket
 from datetime import datetime
 
 from django.utils.text import slugify
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext_lazy as _, ugettext_noop
 from docker import Client
 from docker.utils import create_host_config
 from docker.errors import APIError as DockerAPIError, DockerException
-from rest_framework.renderers import JSONRenderer
+from slumber.exceptions import HttpClientError
 
 from readthedocs.builds.constants import BUILD_STATE_FINISHED
 from readthedocs.builds.models import BuildCommandResultMixin
 from readthedocs.projects.constants import LOG_TEMPLATE
-from readthedocs.api.client import api as api_v1
 from readthedocs.restapi.client import api as api_v2
-from readthedocs.restapi.serializers import BuildCommandSerializer
 
 from .exceptions import (BuildEnvironmentException, BuildEnvironmentError,
                          BuildEnvironmentWarning)
 from .constants import (DOCKER_SOCKET, DOCKER_VERSION, DOCKER_IMAGE,
                         DOCKER_LIMITS, DOCKER_TIMEOUT_EXIT_CODE,
                         DOCKER_OOM_EXIT_CODE, SPHINX_TEMPLATE_DIR,
-                        MKDOCS_TEMPLATE_DIR)
+                        MKDOCS_TEMPLATE_DIR, DOCKER_HOSTNAME_MAX_LEN)
+import six
 
 log = logging.getLogger(__name__)
 
 
+__all__ = (
+    'api_v2',
+    'BuildCommand', 'DockerBuildCommand',
+    'BuildEnvironment', 'LocalEnvironment', 'DockerEnvironment',
+)
+
+
 class BuildCommand(BuildCommandResultMixin):
-    '''Wrap command execution for execution in build environments
+
+    """Wrap command execution for execution in build environments
 
     This wraps subprocess commands with some logic to handle exceptions,
     logging, and setting up the env for the build command.
 
-    This acts a mapping of sorts to the API reprensentation of the
-    :py:cls:`readthedocs.builds.models.BuildCommandResult` model.
+    This acts a mapping of sorts to the API representation of the
+    :py:class:`readthedocs.builds.models.BuildCommandResult` model.
 
     :param command: string or array of command parameters
     :param cwd: current working path for the command
@@ -55,7 +63,7 @@ class BuildCommand(BuildCommandResultMixin):
     :param build_env: build environment to use to execute commands
     :param bin_path: binary path to add to PATH resolution
     :param description: a more grokable description of the command being run
-    '''
+    """
 
     def __init__(self, command, cwd=None, shell=False, environment=None,
                  combine_output=True, input_data=None, build_env=None,
@@ -67,6 +75,7 @@ class BuildCommand(BuildCommandResultMixin):
         self.cwd = cwd
         self.environment = os.environ.copy()
         if environment is not None:
+            assert 'PATH' not in environment, "PATH can't be set"
             self.environment.update(environment)
 
         self.combine_output = combine_output
@@ -91,12 +100,12 @@ class BuildCommand(BuildCommandResultMixin):
         return '\n'.join([self.get_command(), output])
 
     def run(self):
-        '''Set up subprocess and execute command
+        """Set up subprocess and execute command
 
         :param cmd_input: input to pass to command in STDIN
         :type cmd_input: str
         :param combine_output: combine STDERR into STDOUT
-        '''
+        """
         log.info("Running: '%s' [%s]", self.get_command(), self.cwd)
 
         self.start_time = datetime.utcnow()
@@ -137,7 +146,11 @@ class BuildCommand(BuildCommandResultMixin):
             if self.input_data is not None:
                 cmd_input = self.input_data
 
-            cmd_output = proc.communicate(input=cmd_input)
+            if isinstance(cmd_input, six.string_types):
+                cmd_input_bytes = cmd_input.encode('utf-8')
+            else:
+                cmd_input_bytes = cmd_input
+            cmd_output = proc.communicate(input=cmd_input_bytes)
             (cmd_stdout, cmd_stderr) = cmd_output
             try:
                 self.output = cmd_stdout.decode('utf-8', 'replace')
@@ -156,14 +169,13 @@ class BuildCommand(BuildCommandResultMixin):
             self.end_time = datetime.utcnow()
 
     def get_command(self):
-        '''Flatten command'''
+        """Flatten command"""
         if hasattr(self.command, '__iter__') and not isinstance(self.command, str):
             return ' '.join(self.command)
-        else:
-            return self.command
+        return self.command
 
     def save(self):
-        '''Save this command and result via the API'''
+        """Save this command and result via the API"""
         data = {
             'build': self.build_env.build.get('id'),
             'command': self.get_command(),
@@ -177,18 +189,19 @@ class BuildCommand(BuildCommandResultMixin):
 
 
 class DockerBuildCommand(BuildCommand):
-    '''Create a docker container and run a command inside the container
+
+    """Create a docker container and run a command inside the container
 
     Build command to execute in docker container
-    '''
+    """
 
     def run(self):
-        '''Execute command in existing Docker container
+        """Execute command in existing Docker container
 
         :param cmd_input: input to pass to command in STDIN
         :type cmd_input: str
         :param combine_output: combine STDERR into STDOUT
-        '''
+        """
         log.info("Running in container %s: '%s' [%s]",
                  self.build_env.container_id, self.get_command(), self.cwd)
 
@@ -211,9 +224,12 @@ class DockerBuildCommand(BuildCommand):
             self.exit_code = cmd_ret['ExitCode']
 
             # Docker will exit with a special exit code to signify the command
-            # was killed due to memory usage, make the error code nicer.
-            if (self.exit_code == DOCKER_OOM_EXIT_CODE and
-                    self.output == 'Killed\n'):
+            # was killed due to memory usage, make the error code
+            # nicer. Sometimes the kernel kills the command and Docker doesn't
+            # not use the specific exit code, so we check if the word `Killed`
+            # is in the last 15 lines of the command's output
+            killed_in_output = 'Killed' in '\n'.join(self.output.splitlines()[-15:])
+            if self.exit_code == DOCKER_OOM_EXIT_CODE or (self.exit_code == 1 and killed_in_output):
                 self.output = _('Command killed due to excessive memory '
                                 'consumption\n')
         except DockerAPIError:
@@ -234,11 +250,9 @@ class DockerBuildCommand(BuildCommand):
         """
         bash_escape_re = re.compile(r"([\t\ \!\"\#\$\&\'\(\)\*\:\;\<\>\?\@"
                                     r"\[\\\]\^\`\{\|\}\~])")
-        prefix = 'READTHEDOCS=True '
+        prefix = ''
         if self.bin_path:
             prefix += 'PATH={0}:$PATH '.format(self.bin_path)
-        if 'CONDA_ENVS_PATH' in self.environment:
-            prefix += 'CONDA_ENVS_PATH={0} '.format(self.environment['CONDA_ENVS_PATH'])
         return ("/bin/sh -c 'cd {cwd} && {prefix}{cmd}'"
                 .format(
                     cwd=self.cwd,
@@ -248,22 +262,29 @@ class DockerBuildCommand(BuildCommand):
 
 
 class BuildEnvironment(object):
-    '''
-    Base build environment
 
-    Placeholder for reorganizing command execution.
+    """Base build environment
+
+    Base class for wrapping command execution for build steps. This provides a
+    context for command execution and reporting, and eventually performs updates
+    on the build object itself, reporting success/failure, as well as top-level
+    failures.
 
     :param project: Project that is being built
     :param version: Project version that is being built
     :param build: Build instance
     :param record: Record status of build object
-    '''
+    :param environment: shell environment variables
+    """
 
-    def __init__(self, project=None, version=None, build=None, record=True):
+    def __init__(self, project=None, version=None, build=None, record=True,
+                 environment=None):
         self.project = project
         self.version = version
         self.build = build
         self.record = record
+        self.environment = environment or {}
+
         self.commands = []
         self.failure = None
         self.start_time = datetime.utcnow()
@@ -273,7 +294,7 @@ class BuildEnvironment(object):
 
     def __exit__(self, exc_type, exc_value, tb):
         ret = self.handle_exception(exc_type, exc_value, tb)
-        self.update_build(state=BUILD_STATE_FINISHED)
+        self.build['state'] = BUILD_STATE_FINISHED
         log.info(LOG_TEMPLATE
                  .format(project=self.project.slug,
                          version=self.version.slug,
@@ -285,11 +306,10 @@ class BuildEnvironment(object):
 
         This reports on the exception we're handling and special cases
         subclasses of BuildEnvironmentException.  For
-        :py:cls:`BuildEnvironmentWarning`, exit this context gracefully, but
-        don't mark the build as a failure.  For :py:cls:`BuildEnvironmentError`,
-        exit gracefully, but mark the build as a failure.  For all other
-        exception classes, the build will be marked as a failure and an
-        exception will bubble up.
+        :py:class:`BuildEnvironmentWarning`, exit this context gracefully, but
+        don't mark the build as a failure.  For all other exception classes,
+        including :py:class:`BuildEnvironmentError`, the build will be marked as
+        a failure and the context will be gracefully exited.
         """
         if exc_type is not None:
             log.error(LOG_TEMPLATE
@@ -297,26 +317,28 @@ class BuildEnvironment(object):
                               version=self.version.slug,
                               msg=exc_value),
                       exc_info=True)
-            if issubclass(exc_type, BuildEnvironmentWarning):
-                return True
-            else:
+            if not issubclass(exc_type, BuildEnvironmentWarning):
                 self.failure = exc_value
-                if issubclass(exc_type, BuildEnvironmentError):
-                    return True
-                return False
+            return True
 
     def run(self, *cmd, **kwargs):
-        '''Shortcut to run command from environment'''
+        """Shortcut to run command from environment"""
         return self.run_command_class(cls=self.command_class, cmd=cmd, **kwargs)
 
     def run_command_class(self, cls, cmd, **kwargs):
-        '''Run command from this environment
+        """Run command from this environment
 
         Use ``cls`` to instantiate a command
 
         :param warn_only: Don't raise an exception on command failure
-        '''
+        """
         warn_only = kwargs.pop('warn_only', False)
+        # Remove PATH from env, and set it to bin_path if it isn't passed in
+        env_path = self.environment.pop('BIN_PATH', None)
+        if 'bin_path' not in kwargs and env_path:
+            kwargs['bin_path'] = env_path
+        assert 'environment' not in kwargs, "environment can't be passed in via commands."
+        kwargs['environment'] = self.environment
         kwargs['build_env'] = self
         build_cmd = cls(cmd, **kwargs)
         self.commands.append(build_cmd)
@@ -343,13 +365,13 @@ class BuildEnvironment(object):
 
     @property
     def successful(self):
-        '''Is build completed, without top level failures or failing commands'''
+        """Is build completed, without top level failures or failing commands"""
         return (self.done and self.failure is None and
                 all(cmd.successful for cmd in self.commands))
 
     @property
     def failed(self):
-        '''Is build completed, but has top level failure or failing commands'''
+        """Is build completed, but has top level failure or failing commands"""
         return (self.done and (
             self.failure is not None or
             any(cmd.failed for cmd in self.commands)
@@ -357,15 +379,16 @@ class BuildEnvironment(object):
 
     @property
     def done(self):
-        '''Is build in finished state'''
+        """Is build in finished state"""
         return (self.build is not None and
                 self.build['state'] == BUILD_STATE_FINISHED)
 
     def update_build(self, state=None):
-        """
-        Record a build by hitting the API.
+        """Record a build by hitting the API
 
-        Returns nothing
+        This step is skipped if we aren't recording the build, or if we don't
+        want to record successful builds yet (if we are running setup commands
+        for the build)
         """
         if not self.record:
             return None
@@ -382,7 +405,7 @@ class BuildEnvironment(object):
             if self.failure and isinstance(self.failure,
                                            BuildEnvironmentException):
                 self.build['exit_code'] = self.failure.status_code
-            elif len(self.commands) > 0:
+            elif self.commands:
                 self.build['exit_code'] = max([cmd.exit_code
                                                for cmd in self.commands])
 
@@ -391,29 +414,52 @@ class BuildEnvironment(object):
 
         if self.start_time:
             build_length = (datetime.utcnow() - self.start_time)
-            self.build['length'] = build_length.total_seconds()
+            self.build['length'] = int(build_length.total_seconds())
 
         if self.failure is not None:
-            self.build['error'] = str(self.failure)
+            # Only surface the error message if it was a
+            # BuildEnvironmentException or BuildEnvironmentWarning
+            if isinstance(self.failure,
+                          (BuildEnvironmentException, BuildEnvironmentWarning)):
+                self.build['error'] = str(self.failure)
+            else:
+                self.build['error'] = ugettext_noop(
+                    "There was a problem with Read the Docs while building your documentation. "
+                    "Please report this to us with your build id ({build_id}).".format(
+                        build_id=self.build['id']
+                    )
+                )
+                log.error(
+                    'Build failed with unhandled exception: %s',
+                    str(self.failure),
+                    extra={'stack': True,
+                           'tags': {'build': self.build['id']},
+                           }
+                )
 
         # Attempt to stop unicode errors on build reporting
-        for key, val in self.build.items():
-            if isinstance(val, basestring):
+        for key, val in list(self.build.items()):
+            if isinstance(val, six.binary_type):
                 self.build[key] = val.decode('utf-8', 'ignore')
 
         try:
-            resp = api_v2.build(self.build['id']).put(self.build)
+            api_v2.build(self.build['id']).put(self.build)
+        except HttpClientError as e:
+            log.error("Unable to post a new build: %s", e.content)
         except Exception:
-            log.error("Unable to post a new build", exc_info=True)
+            log.exception("Unknown build exception")
 
 
 class LocalEnvironment(BuildEnvironment):
-    '''Local execution environment'''
+
+    """Local execution environment"""
+
     command_class = BuildCommand
 
 
 class DockerEnvironment(BuildEnvironment):
-    '''
+
+    """
     Docker build environment, uses docker to contain builds
 
     If :py:data:`settings.DOCKER_ENABLE` is true, build documentation inside a
@@ -425,7 +471,8 @@ class DockerEnvironment(BuildEnvironment):
     data.
 
     :param docker_socket: Override to Docker socket URI
-    '''
+    """
+
     command_class = DockerBuildCommand
     container_image = DOCKER_IMAGE
     container_mem_limit = DOCKER_LIMITS.get('memory')
@@ -436,12 +483,20 @@ class DockerEnvironment(BuildEnvironment):
         super(DockerEnvironment, self).__init__(*args, **kwargs)
         self.client = None
         self.container = None
-        self.container_name = None
-        if self.version:
-            self.container_name = slugify(unicode(self.version))
+        self.container_name = slugify(
+            'build-{build}-project-{project_id}-{project_name}'.format(
+                build=self.build.get('id'),
+                project_id=self.project.pk,
+                project_name=self.project.slug,
+            )[:DOCKER_HOSTNAME_MAX_LEN]
+        )
+        if self.project.container_mem_limit:
+            self.container_mem_limit = self.project.container_mem_limit
+        if self.project.container_time_limit:
+            self.container_time_limit = self.project.container_time_limit
 
     def __enter__(self):
-        '''Start of environment context'''
+        """Start of environment context"""
         log.info('Creating container')
         try:
             # Test for existing container. We remove any stale containers that
@@ -450,12 +505,12 @@ class DockerEnvironment(BuildEnvironment):
             # locking code, so we throw an exception.
             state = self.container_state()
             if state is not None:
-                if state.get('Running') == True:
+                if state.get('Running') is True:
                     exc = BuildEnvironmentError(
                         _('A build environment is currently '
                           'running for this version'))
                     self.failure = exc
-                    self.update_build(state=BUILD_STATE_FINISHED)
+                    self.build['state'] = BUILD_STATE_FINISHED
                     raise exc
                 else:
                     log.warn(LOG_TEMPLATE
@@ -481,7 +536,7 @@ class DockerEnvironment(BuildEnvironment):
         return self
 
     def __exit__(self, exc_type, exc_value, tb):
-        '''End of environment context'''
+        """End of environment context"""
         ret = self.handle_exception(exc_type, exc_value, tb)
 
         # Update buildenv state given any container error states first
@@ -502,9 +557,8 @@ class DockerEnvironment(BuildEnvironment):
                           version=self.version.slug,
                           msg="Couldn't remove container"),
                       exc_info=True)
-
         self.container = None
-        self.update_build(state=BUILD_STATE_FINISHED)
+        self.build['state'] = BUILD_STATE_FINISHED
         log.info(LOG_TEMPLATE
                  .format(project=self.project.slug,
                          version=self.version.slug,
@@ -512,7 +566,7 @@ class DockerEnvironment(BuildEnvironment):
         return ret
 
     def get_client(self):
-        '''Create Docker client connection'''
+        """Create Docker client connection"""
         try:
             if self.client is None:
                 self.client = Client(
@@ -532,14 +586,14 @@ class DockerEnvironment(BuildEnvironment):
 
     @property
     def container_id(self):
-        '''Return id of container if it is valid'''
+        """Return id of container if it is valid"""
         if self.container_name:
             return self.container_name
         elif self.container:
             return self.container.get('Id')
 
     def container_state(self):
-        '''Get container state'''
+        """Get container state"""
         client = self.get_client()
         try:
             info = client.inspect_container(self.container_id)
@@ -548,13 +602,13 @@ class DockerEnvironment(BuildEnvironment):
             return None
 
     def update_build_from_container_state(self):
-        '''Update buildenv state from container state
+        """Update buildenv state from container state
 
         In the case of the parent command exiting before the exec commands
         finish and the container is destroyed, or in the case of OOM on the
         container, set a failure state and error message explaining the failure
         on the buildenv.
-        '''
+        """
         state = self.container_state()
         if state is not None and state.get('Running') is False:
             if state.get('ExitCode') == DOCKER_TIMEOUT_EXIT_CODE:
@@ -569,7 +623,7 @@ class DockerEnvironment(BuildEnvironment):
                      .format(state.get('Error'))))
 
     def create_container(self):
-        '''Create docker container'''
+        """Create docker container"""
         client = self.get_client()
         image = self.container_image
         if self.project.container_image:
@@ -585,11 +639,11 @@ class DockerEnvironment(BuildEnvironment):
                 host_config=create_host_config(binds={
                     SPHINX_TEMPLATE_DIR: {
                         'bind': SPHINX_TEMPLATE_DIR,
-                        'mode': 'r'
+                        'mode': 'ro'
                     },
                     MKDOCS_TEMPLATE_DIR: {
                         'bind': MKDOCS_TEMPLATE_DIR,
-                        'mode': 'r'
+                        'mode': 'ro'
                     },
                     self.project.doc_path: {
                         'bind': self.project.doc_path,
@@ -597,8 +651,7 @@ class DockerEnvironment(BuildEnvironment):
                     },
                 }),
                 detach=True,
-                environment={'READTHEDOCS_VERSION': self.version.slug,
-                             'READTHEDOCS_PROJECT': self.project.slug},
+                environment=self.environment,
                 mem_limit=self.container_mem_limit,
             )
             client.start(container=self.container_id)

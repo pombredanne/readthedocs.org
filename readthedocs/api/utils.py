@@ -1,3 +1,6 @@
+"""Utility classes for api module"""
+from __future__ import absolute_import
+from builtins import object
 import logging
 
 from django.core.paginator import Paginator, InvalidPage
@@ -19,13 +22,16 @@ log = logging.getLogger(__name__)
 
 
 class SearchMixin(object):
-    '''
+
+    """
     Adds a search api to any ModelResource provided the model is indexed.
+
     The search can be configured using the Meta class in each ModelResource.
     The search is limited to the model defined by the meta queryset. If the
     search is invalid, a 400 Bad Request will be raised.
 
     e.g.
+
         class Meta:
             # Return facet counts for each facetname
             search_facets = ['facetname1', 'facetname1']
@@ -35,8 +41,9 @@ class SearchMixin(object):
 
             # Highlight search terms in the text
             search_highlight = True
-    '''
-    def get_search(self, request, **kwargs):
+    """
+
+    def get_search(self, request):
         self.method_check(request, allowed=['get'])
         self.is_authenticated(request)
         self.throttle_check(request)
@@ -49,11 +56,12 @@ class SearchMixin(object):
         return self.create_response(request, object_list)
 
     def _url_template(self, query, selected_facets):
-        '''
+        """
         Construct a url template to assist with navigating the resources.
+
         This looks a bit nasty but urllib.urlencode resulted in even
         nastier output...
-        '''
+        """
         query_params = []
         for facet in selected_facets:
             query_params.append(('selected_facets', facet))
@@ -67,12 +75,15 @@ class SearchMixin(object):
 
     def _search(self, request, model, facets=None, page_size=20,
                 highlight=True):
-        '''
+        # pylint: disable=too-many-locals
+        """
+        Return a paginated list of objects for a request.
+
+        `model`
+            Limit the search to a particular model
         `facets`
             A list of facets to include with the results
-        `models`
-            Limit the search to one or more models
-        '''
+        """
         form = FacetedSearchForm(request.GET, facets=facets or [],
                                  models=(model,), load_all=True)
         if not form.is_valid():
@@ -139,6 +150,9 @@ class SearchMixin(object):
 
 
 class PostAuthentication(BasicAuthentication):
+
+    """Require HTTP Basic authentication for any method other than GET."""
+
     def is_authenticated(self, request, **kwargs):
         val = super(PostAuthentication, self).is_authenticated(request,
                                                                **kwargs)
@@ -148,7 +162,7 @@ class PostAuthentication(BasicAuthentication):
 
 
 class EnhancedModelResource(ModelResource):
-    def obj_get_list(self, request=None, *args, **kwargs):
+    def obj_get_list(self, request=None, *_, **kwargs):  # pylint: disable=arguments-differ
         """
         A ORM-specific implementation of ``obj_get_list``.
 
@@ -165,7 +179,7 @@ class EnhancedModelResource(ModelResource):
 
         try:
             return self.get_object_list(request).filter(**applicable_filters)
-        except ValueError, e:
+        except ValueError as e:
             raise NotFound(ugettext("Invalid resource lookup data provided "
                                     "(mismatched type).: %(error)s")
                            % {'error': e})

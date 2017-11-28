@@ -1,25 +1,27 @@
-"""
-Views for creating, editing and viewing site-specific user profiles.
+"""Views for creating, editing and viewing site-specific user profiles."""
 
-"""
+from __future__ import absolute_import
 
+from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.urlresolvers import reverse
 from django.http import Http404
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render, redirect
 from django.shortcuts import render_to_response
 from django.template import RequestContext
+
+from readthedocs.core.forms import UserDeleteForm
 
 
 def create_profile(request, form_class, success_url=None,
                    template_name='profiles/private/create_profile.html',
                    extra_context=None):
     """
-    Create a profile for the current user, if one doesn't already
-    exist.
+    Create a profile for the current user, if one doesn't already exist.
 
     If the user already has a profile, a redirect will be issued to the
     :view:`profiles.views.edit_profile` view.
@@ -98,8 +100,8 @@ def create_profile(request, form_class, success_url=None,
     if extra_context is None:
         extra_context = {}
     context = RequestContext(request)
-    for key, value in extra_context.items():
-        context[key] = callable(value) and value() or value
+    for key, value in list(extra_context.items()):
+        context[key] = (value() if callable(value) else value)
 
     return render_to_response(template_name,
                               {'form': form},
@@ -175,8 +177,8 @@ def edit_profile(request, form_class, success_url=None,
     if extra_context is None:
         extra_context = {}
     context = RequestContext(request)
-    for key, value in extra_context.items():
-        context[key] = callable(value) and value() or value
+    for key, value in list(extra_context.items()):
+        context[key] = (value() if callable(value) else value)
 
     return render_to_response(template_name, {
         'form': form,
@@ -184,6 +186,27 @@ def edit_profile(request, form_class, success_url=None,
         'user': profile_obj.user,
     }, context_instance=context)
 edit_profile = login_required(edit_profile)
+
+
+@login_required()
+def delete_account(request):
+    form = UserDeleteForm()
+    template_name = 'profiles/private/delete_account.html'
+
+    if request.method == 'POST':
+        form = UserDeleteForm(instance=request.user, data=request.POST)
+        if form.is_valid():
+
+            # Do not delete the account permanently because it may create disaster
+            # Inactive the user instead.
+            request.user.is_active = False
+            request.user.save()
+            logout(request)
+            messages.info(request, 'You have successfully deleted your account')
+
+            return redirect('homepage')
+
+    return render(request, template_name, {'form': form})
 
 
 def profile_detail(request, username, public_profile_field=None,
@@ -247,8 +270,8 @@ def profile_detail(request, username, public_profile_field=None,
     if extra_context is None:
         extra_context = {}
     context = RequestContext(request)
-    for key, value in extra_context.items():
-        context[key] = callable(value) and value() or value
+    for key, value in list(extra_context.items()):
+        context[key] = (value() if callable(value) else value)
 
     return render_to_response(template_name,
                               {'profile': profile_obj},

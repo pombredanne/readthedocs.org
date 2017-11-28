@@ -1,15 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import (absolute_import, print_function, unicode_literals)
 
 from django.db import models, migrations
+from future.backports.urllib.parse import urlparse
+
 import readthedocs.core.validators
-
-import sys
-
-if sys.version_info > (3,):
-    import urllib.parse as urlparse
-else:
-    import urlparse
 
 
 def migrate_url(apps, schema_editor):

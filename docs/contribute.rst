@@ -5,8 +5,10 @@ Contributing to Read the Docs
 
 You are here to help on Read the Docs? Awesome, feel welcome and read the
 following sections in order to know what and how to work on something. If you
-get stuck at any point, feel free to get in touch in our IRC channel
-`#readthedocs`_ on Freenode or create a `ticket on GitHub`_.
+get stuck at any point you can create a `ticket on GitHub`_.
+
+All members of our community are expected to follow our :doc:`/code-of-conduct`.
+Please make sure you are welcoming and friendly in all of our spaces.
 
 .. _#readthedocs: irc://irc.freenode.net/readthedocs
 .. _ticket on GitHub: https://github.com/rtfd/readthedocs.org/issues
@@ -18,7 +20,7 @@ If you want to deep dive and help out with development on Read the Docs, then
 first get the project installed locally according to the
 :ref:`Installation Guide <installing-read-the-docs>`. After that is done we
 suggest you have a look at tickets in our issue tracker that are labelled `Good
-First Bug`_. These are meant to be a great way to get a smooth start and
+First Issue`_. These are meant to be a great way to get a smooth start and
 won't put you in front of the most complex parts of the system.
 
 If you are up to more challenging tasks with a bigger scope, then there are a
@@ -32,16 +34,37 @@ label. Those tickets are meant to be standalone and can be worked on ad-hoc.
 When contributing code, then please follow the standard Contribution
 Guidelines set forth at `contribution-guide.org`_.
 
+We have a strict code style that it's easy to follow since you just
+have to run a couple of commands and they will do everything for
+you. These commands are a mix between `autoflake`_, `autopep8`_,
+`docformatter`_, `isort`_, `unify`_ and `yapf`_::
+
+  $ autoflake --remove-all-unused-imports --remove-unused-variables --keep-useless-pass
+  $ autopep8
+  $ docformatter --wrap-summaries=80 --wrap-descriptions=80 --pre-summary-newline --no-blank
+  $ isort
+  $ unify --quote="'"
+  $ yapf --exclude=*migrations* --exclude=*settings* --exclude=*scripts* --parallel
+
 .. _Feature Overview: https://github.com/rtfd/readthedocs.org/issues?direction=desc&labels=Feature+Overview&page=1&sort=updated&state=open
-.. _Good First Bug: https://github.com/rtfd/readthedocs.org/issues?q=is%3Aopen+is%3Aissue+label%3A%22Good+First+Bug%22
+.. _Good First Issue: https://github.com/rtfd/readthedocs.org/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22
 .. _Sprintable: https://github.com/rtfd/readthedocs.org/issues?q=is%3Aopen+is%3Aissue+label%3ASprintable
 .. _contribution-guide.org: http://www.contribution-guide.org/#submitting-bugs
+
+.. _autoflake: https://github.com/myint/autoflake
+.. _autopep8: https://github.com/hhatto/autopep8
+.. _docformatter: https://github.com/myint/docformatter
+.. _unify: https://github.com/myint/unify
+.. _yapf: https://github.com/google/yapf
 
 Triaging tickets
 ----------------
 
 Here is a brief explanation on how we triage incoming tickets to get a better
 sense of what needs to be done on what end.
+
+.. note:: You will need Triage permission on the project in order to do this.
+          You can ask one of the members of the :doc:`team` to give you access.
 
 Initial triage
 ~~~~~~~~~~~~~~
@@ -138,7 +161,7 @@ label. The reported issue …
     Examples:
 
     - *Please change my username*
-    - *Please set me as owner of this abondand project*
+    - *Please set me as owner of this abandoned project*
 
 After we finished the initial triaging of new tickets, no ticket should be left
 without a label.
@@ -157,7 +180,7 @@ few more at hand to further categorize issues.
 
 *Community Effort*
     There are many valuable ideas in the issue tracker for future enhancements
-    of Read the Docs. Unfortunately to many for the core developers to handle
+    of Read the Docs. Unfortunately too many for the core developers to handle
     all of them. Therefore we assign the *Community Effort* label on all the
     issues that we see as valid for the project but that we currently do not
     have the resources to work on. We encourage community members to work

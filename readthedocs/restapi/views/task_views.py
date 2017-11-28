@@ -1,3 +1,6 @@
+"""Endpoints relating to task/job status, etc."""
+
+from __future__ import absolute_import
 import logging
 
 from django.core.urlresolvers import reverse
@@ -50,7 +53,7 @@ def job_status(request, task_id):
 @decorators.permission_classes((permissions.IsAuthenticated,))
 @decorators.renderer_classes((JSONRenderer,))
 def sync_remote_repositories(request):
-    result = tasks.sync_remote_repositories.delay(
+    result = tasks.SyncRemoteRepositories().delay(
         user_id=request.user.id)
     task_id = result.task_id
     return Response({

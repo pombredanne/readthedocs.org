@@ -1,12 +1,15 @@
+"""Defines access permissions for the API."""
+
+from __future__ import absolute_import
+
 from rest_framework import permissions
-from readthedocs.privacy.backend import AdminPermission
+
+from readthedocs.core.permissions import AdminPermission
 
 
 class IsOwner(permissions.BasePermission):
 
-    """
-    Custom permission to only allow owners of an object to edit it.
-    """
+    """Custom permission to only allow owners of an object to edit it."""
 
     def has_object_permission(self, request, view, obj):
         # Write permissions are only allowed to the owner of the snippet
@@ -15,18 +18,15 @@ class IsOwner(permissions.BasePermission):
 
 class CommentModeratorOrReadOnly(permissions.BasePermission):
 
-    def has_object_permission(self, request, view, comment):
+    def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True  # TODO: Similar logic to #1084
-        else:
-            return AdminPermission.is_admin(request.user, comment.node.project)
+        return AdminPermission.is_admin(request.user, obj.node.project)
 
 
 class RelatedProjectIsOwner(permissions.BasePermission):
 
-    """
-    Custom permission to only allow owners of an object to edit it.
-    """
+    """Custom permission to only allow owners of an object to edit it."""
 
     def has_permission(self, request, view):
         return (request.method in permissions.SAFE_METHODS)
@@ -41,12 +41,14 @@ class RelatedProjectIsOwner(permissions.BasePermission):
 
 class APIPermission(permissions.IsAuthenticatedOrReadOnly):
 
-    '''
-    This permission should allow authenicated users readonly access to the API,
+    """
+    Control users access to the API.
+
+    This permission should allow authenticated users readonly access to the API,
     and allow admin users write access. This should be used on API resources
     that need to implement write operations to resources that were based on the
     ReadOnlyViewSet
-    '''
+    """
 
     def has_permission(self, request, view):
         has_perm = super(APIPermission, self).has_permission(request, view)
@@ -62,7 +64,7 @@ class APIRestrictedPermission(permissions.BasePermission):
 
     """Allow admin write, authenticated and anonymous read only
 
-    This differs from :py:cls:`APIPermission` by not allowing for authenticated
+    This differs from :py:class:`APIPermission` by not allowing for authenticated
     POSTs. This permission is endpoints like ``/api/v2/build/``, which are used
     by admin users to coordinate build instance creation, but only should be
     readable by end users.

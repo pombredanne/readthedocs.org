@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import mock
 
 from django.test import TestCase
@@ -11,18 +12,18 @@ from readthedocs.core.resolver import resolve_path, resolve, resolve_domain
 from django_dynamic_fixture import get
 
 
+@override_settings(PUBLIC_DOMAIN='readthedocs.org')
 class ResolverBase(TestCase):
 
     def setUp(self):
-        with mock.patch('readthedocs.projects.models.symlink'):
-            with mock.patch('readthedocs.projects.models.update_static_metadata'):
-                self.owner = create_user(username='owner', password='test')
-                self.tester = create_user(username='tester', password='test')
-                self.pip = get(Project, slug='pip', users=[self.owner], main_language_project=None)
-                self.subproject = get(Project, slug='sub', language='ja', users=[self.owner], main_language_project=None)
-                self.translation = get(Project, slug='trans', language='ja', users=[self.owner], main_language_project=None)
-                self.pip.add_subproject(self.subproject)
-                self.pip.translations.add(self.translation)
+        with mock.patch('readthedocs.projects.models.broadcast'):
+            self.owner = create_user(username='owner', password='test')
+            self.tester = create_user(username='tester', password='test')
+            self.pip = get(Project, slug='pip', users=[self.owner], main_language_project=None)
+            self.subproject = get(Project, slug='sub', language='ja', users=[self.owner], main_language_project=None)
+            self.translation = get(Project, slug='trans', language='ja', users=[self.owner], main_language_project=None)
+            self.pip.add_subproject(self.subproject)
+            self.pip.translations.add(self.translation)
 
 
 class SmartResolverPathTests(ResolverBase):
@@ -48,6 +49,13 @@ class SmartResolverPathTests(ResolverBase):
             self.assertEqual(url, '/docs/pip/en/latest/foo/bar/')
             url = resolve_path(project=self.pip, filename='foo/index/index.html')
             self.assertEqual(url, '/docs/pip/en/latest/foo/index/')
+
+    def test_resolver_filename_false_index(self):
+        with override_settings(USE_SUBDOMAIN=False):
+            url = resolve_path(project=self.pip, filename='foo/foo_index.html')
+            self.assertEqual(url, '/docs/pip/en/latest/foo/foo_index.html')
+            url = resolve_path(project=self.pip, filename='foo_index/foo_index.html')
+            self.assertEqual(url, '/docs/pip/en/latest/foo_index/foo_index.html')
 
     def test_resolver_filename_sphinx(self):
         self.pip.documentation_type = 'sphinx'
@@ -239,7 +247,7 @@ class ResolverDomainTests(ResolverBase):
     def test_domain_public(self):
         with override_settings(USE_SUBDOMAIN=False):
             url = resolve_domain(project=self.translation)
-            self.assertEqual(url, 'public.readthedocs.org')
+            self.assertEqual(url, 'readthedocs.org')
         with override_settings(USE_SUBDOMAIN=True):
             url = resolve_domain(project=self.translation)
             self.assertEqual(url, 'pip.public.readthedocs.org')
@@ -249,7 +257,7 @@ class ResolverDomainTests(ResolverBase):
             self.assertEqual(url, 'readthedocs.org')
         with override_settings(USE_SUBDOMAIN=True):
             url = resolve_domain(project=self.translation, private=True)
-            self.assertEqual(url, 'readthedocs.org')
+            self.assertEqual(url, 'pip.public.readthedocs.org')
 
 
 class ResolverTests(ResolverBase):
@@ -320,7 +328,7 @@ class ResolverTests(ResolverBase):
             self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
         with override_settings(USE_SUBDOMAIN=True):
             url = resolve(project=self.pip, private=True)
-            self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
+            self.assertEqual(url, 'http://pip.readthedocs.org/en/latest/')
 
     @override_settings(PRODUCTION_DOMAIN='readthedocs.org')
     def test_resolver_private_project_override(self):
@@ -348,7 +356,7 @@ class ResolverTests(ResolverBase):
             self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
         with override_settings(USE_SUBDOMAIN=True):
             url = resolve(project=self.pip)
-            self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
+            self.assertEqual(url, 'http://pip.readthedocs.org/en/latest/')
             url = resolve(project=self.pip, private=False)
             self.assertEqual(url, 'http://pip.readthedocs.org/en/latest/')
 
@@ -358,10 +366,10 @@ class ResolverTests(ResolverBase):
             url = resolve(project=self.pip, private=True)
             self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
             url = resolve(project=self.pip, private=False)
-            self.assertEqual(url, 'http://public.readthedocs.org/docs/pip/en/latest/')
+            self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
         with override_settings(USE_SUBDOMAIN=True):
             url = resolve(project=self.pip, private=True)
-            self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
+            self.assertEqual(url, 'http://pip.public.readthedocs.org/en/latest/')
             url = resolve(project=self.pip, private=False)
             self.assertEqual(url, 'http://pip.public.readthedocs.org/en/latest/')
 
@@ -369,11 +377,11 @@ class ResolverTests(ResolverBase):
         self.domain = get(Domain, domain='docs.foobar.com', project=self.pip, canonical=True)
         with override_settings(USE_SUBDOMAIN=True):
             url = resolve(project=self.pip, private=True)
-            self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
+            self.assertEqual(url, 'http://docs.foobar.com/en/latest/')
             url = resolve(project=self.pip, private=False)
             self.assertEqual(url, 'http://docs.foobar.com/en/latest/')
         with override_settings(USE_SUBDOMAIN=False):
             url = resolve(project=self.pip, private=True)
-            self.assertEqual(url, 'http://readthedocs.org/docs/pip/en/latest/')
+            self.assertEqual(url, 'http://docs.foobar.com/en/latest/')
             url = resolve(project=self.pip, private=False)
             self.assertEqual(url, 'http://docs.foobar.com/en/latest/')

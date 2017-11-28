@@ -1,3 +1,6 @@
+"""Celery tasks with publicly viewable status"""
+
+from __future__ import absolute_import
 from celery import Task, states
 from django.conf import settings
 
@@ -14,25 +17,23 @@ STATUS_UPDATES_ENABLED = not getattr(settings, 'CELERY_ALWAYS_EAGER', False)
 
 
 class PublicTask(Task):
+
     """
     See oauth.tasks for usage example.
 
     Subclasses need to define a ``run_public`` method.
     """
+
     public_name = 'unknown'
 
     @classmethod
     def check_permission(cls, request, state, context):
-        """
-        Override this method to define who can monitor this task.
-        """
+        """Override this method to define who can monitor this task."""
+        # pylint: disable=unused-argument
         return False
 
     def get_task_data(self):
-        """
-        Return a tuple with the state that should be set next and the results
-        task.
-        """
+        """Return tuple with state to be set next and results task."""
         state = 'STARTED'
         info = {
             'task_name': self.name,
@@ -49,6 +50,7 @@ class PublicTask(Task):
     def set_permission_context(self, context):
         """
         Set data that can be used by ``check_permission`` to authorize a
+
         request for the this task. By default it will be the ``kwargs`` passed
         into the task.
         """
@@ -58,6 +60,7 @@ class PublicTask(Task):
     def set_public_data(self, data):
         """
         Set data that can be displayed in the frontend to authorized users.
+
         This might include progress data about the task.
         """
         self.request.update(public_data=data)
@@ -68,7 +71,7 @@ class PublicTask(Task):
         result = self.run_public(*args, **kwargs)
         if result is not None:
             self.set_public_data(result)
-        state, info = self.get_task_data()
+        _, info = self.get_task_data()
         return info
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
@@ -83,6 +86,7 @@ class PublicTask(Task):
 def permission_check(check):
     """
     Class decorator for subclasses of PublicTask to sprinkle in re-usable
+
     permission checks::
 
         @permission_check(user_id_matches)
@@ -90,7 +94,6 @@ def permission_check(check):
             def run_public(self, user_id):
                 pass
     """
-
     def decorator(cls):
         cls.check_permission = staticmethod(check)
         return cls

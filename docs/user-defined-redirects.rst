@@ -1,8 +1,25 @@
 User-defined Redirects
 ======================
 
+You can set up redirects for a project in your project dashboard's Redirects page. 
+
+Quick Summary
+-------------
+
+* Log into your Readthedocs.com Admin account.
+* From your dashboard, select the project on which you wish to add redirects.
+* From the project's top navigation bar, select the Admin tab.
+* From the left navigation menu, select Redirects. 
+* In the form box "Redirect Type" select the type of redirect you want. See below for detail.
+* Depending on the redirect type you select, enter FROM and/or TO URL as needed.
+* When finished, click the SUBMIT Button.
+
+Your redirects will be effective immediately.
+
+Redirect Types
+--------------
 Prefix Redirects
-----------------
+~~~~~~~~~~~~~~~~
 
 The most useful and requested feature of redirects was when migrating to Read the Docs from an old host.
 You would have your docs served at a previous URL,
@@ -28,7 +45,7 @@ Your users query would now redirect in the following manner::
 Where ``en`` and ``latest`` are the default language and version values for your project.
 
 Page Redirects
---------------
+~~~~~~~~~~~~~~
 
 A more specific case is when you move a page around in your docs.
 The old page will start 404'ing,
@@ -45,9 +62,33 @@ You would set the following configuration::
 Note that the ``/`` at the start doesn't count the ``/en/latest``, 
 but just the user-controlled section of the URL.
 
+Exact Redirects
+~~~~~~~~~~~~~~~
+
+If you're redirecting from an old host AND you aren't maintaining old paths for your
+documents, a Prefix Redirect won't suffice and you'll need to create *Exact Redirects*
+to redirect from a specific URL, to a specific page.
+
+Say you're moving ``docs.example.com`` to Read the Docs and want to redirect traffic
+from an old page at ``http://docs.example.com/dev/install.html`` to a new URL
+of ``http://docs.example.com/en/latest/installing-your-site.html``.
+
+The example configuration would be::
+
+    Type: Exact Redirect
+    From URL: /dev/install.html
+    To URL:   /en/latest/installing-your-site.html
+
+Your users query would now redirect in the following manner::
+
+	docs.example.com/dev/install.html ->
+	docs.example.com/en/latest/installing-your-site.html
+
+Note that you should insert the desired language for "en" and version for "latest" to
+achieve the desired redirect.
 
 Sphinx Redirects
-----------------
+~~~~~~~~~~~~~~~~
 
 We also support redirects for changing the type of documentation Sphinx is building.
 If you switch between *HTMLDir* and *HTML*, your URL's will change.
@@ -64,8 +105,4 @@ This means that redirects will only happen in the case of a *404 File Not Found*
 
 In the future we might implement redirect logic in Javascript,
 but this first version is only implemented in the 404 handlers.
-
-
-Feature Requests
-
 

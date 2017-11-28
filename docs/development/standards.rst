@@ -1,14 +1,11 @@
 =====================
-Development Standards
-=====================
-
 Front End Development
 =====================
 
 Background
 ----------
 
-.. info::
+.. note::
 
     Consider this the canonical resource for contributing Javascript and CSS. We
     are currently in the process of modernizing our front end development

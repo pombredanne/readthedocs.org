@@ -4,47 +4,55 @@ This includes fetching repository code, cleaning ``conf.py`` files, and
 rebuilding documentation.
 """
 
-import os
-import shutil
+from __future__ import absolute_import
+
+import hashlib
 import json
 import logging
+import os
+import shutil
 import socket
-import requests
-import hashlib
 from collections import defaultdict
 
-from celery import task, Task
-from djcelery import celery as celery_app
+import requests
+from builtins import str
+from celery import Task
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
+from readthedocs_build.config import ConfigError
+from slumber.exceptions import HttpClientError
 
+from .constants import LOG_TEMPLATE
+from .exceptions import ProjectImportError
+from .models import ImportedFile, Project, Domain
+from .signals import before_vcs, after_vcs, before_build, after_build
 from readthedocs.builds.constants import (LATEST,
                                           BUILD_STATE_CLONING,
                                           BUILD_STATE_INSTALLING,
-                                          BUILD_STATE_BUILDING)
-from readthedocs.builds.models import Build, Version
-from readthedocs.core.utils import send_email, run_on_app_servers
+                                          BUILD_STATE_BUILDING,
+                                          BUILD_STATE_FINISHED)
+from readthedocs.builds.models import Build, Version, APIVersion
+from readthedocs.builds.signals import build_complete
+from readthedocs.builds.syncers import Syncer
 from readthedocs.cdn.purge import purge
-from readthedocs.doc_builder.loader import get_builder_class
-from readthedocs.doc_builder.config import ConfigWrapper, load_yaml_config
+from readthedocs.core.resolver import resolve_path
+from readthedocs.core.symlink import PublicSymlink, PrivateSymlink
+from readthedocs.core.utils import send_email, broadcast
+from readthedocs.doc_builder.config import load_yaml_config
 from readthedocs.doc_builder.environments import (LocalEnvironment,
                                                   DockerEnvironment)
 from readthedocs.doc_builder.exceptions import BuildEnvironmentError
+from readthedocs.doc_builder.loader import get_builder_class
 from readthedocs.doc_builder.python_environments import Virtualenv, Conda
-from readthedocs.projects.exceptions import ProjectImportError
-from readthedocs.projects.models import ImportedFile, Project
-from readthedocs.projects.utils import make_api_version, make_api_project, symlink
-from readthedocs.projects.constants import LOG_TEMPLATE
-from readthedocs.privacy.loader import Syncer
+from readthedocs.projects.models import APIProject
+from readthedocs.restapi.client import api as api_v2
+from readthedocs.restapi.utils import index_search_request
 from readthedocs.search.parse_json import process_all_json_files
 from readthedocs.search.utils import process_mkdocs_json
-from readthedocs.restapi.utils import index_search_request
 from readthedocs.vcs_support import utils as vcs_support_utils
-from readthedocs.api.client import api as api_v1
-from readthedocs.restapi.client import api as api_v2
-from readthedocs.projects.signals import before_vcs, after_vcs, before_build, after_build
-from readthedocs.core.resolver import resolve_path
+from readthedocs.worker import app
 
 
 log = logging.getLogger(__name__)
@@ -72,9 +80,10 @@ class UpdateDocsTask(Task):
 
     max_retries = 5
     default_retry_delay = (7 * 60)
-    name = 'update_docs'
+    name = __name__ + '.update_docs'
 
-    def __init__(self, build_env=None, python_env=None, force=False, search=True, localmedia=True,
+    def __init__(self, build_env=None, python_env=None, config=None,
+                 force=False, search=True, localmedia=True,
                  build=None, project=None, version=None):
         self.build_env = build_env
         self.python_env = python_env
@@ -90,6 +99,8 @@ class UpdateDocsTask(Task):
         self.project = {}
         if project is not None:
             self.project = project
+        if config is not None:
+            self.config = config
 
     def _log(self, msg):
         log.info(LOG_TEMPLATE
@@ -97,40 +108,116 @@ class UpdateDocsTask(Task):
                          version=self.version.slug,
                          msg=msg))
 
-    def run(self, pk, version_pk=None, build_pk=None, record=True, docker=False,
-            search=True, force=False, localmedia=True, **kwargs):
+    # pylint: disable=arguments-differ
+    def run(self, pk, version_pk=None, build_pk=None, record=True,
+            docker=False, search=True, force=False, localmedia=True, **__):
+        """
+        Run a documentation build.
 
-        self.project = self.get_project(pk)
-        self.version = self.get_version(self.project, version_pk)
-        self.build = self.get_build(build_pk)
-        self.build_search = search
-        self.build_localmedia = localmedia
-        self.build_force = force
+        This is fully wrapped in exception handling to account for a number of failure cases.
+        """
+        unhandled_failure = ''
+        try:
+            self.project = self.get_project(pk)
+            self.version = self.get_version(self.project, version_pk)
+            self.build = self.get_build(build_pk)
+            self.build_search = search
+            self.build_localmedia = localmedia
+            self.build_force = force
+            self.config = None
 
-        env_cls = LocalEnvironment
-        if docker or settings.DOCKER_ENABLE:
-            env_cls = DockerEnvironment
-        self.build_env = env_cls(project=self.project, version=self.version,
-                                 build=self.build, record=record)
+            setup_successful = self.run_setup(record=record)
+            if setup_successful:
+                self.run_build(record=record, docker=docker)
+        except Exception as e:  # noqa
+            log.exception(
+                'An unhandled exception was raised outside the build environment',
+                extra={'tags': {'build': build_pk}}
+            )
+            unhandled_failure = _(
+                'Unknown error encountered. '
+                'Please include the build id ({build_id}) in any bug reports.'.format(
+                    build_id=build_pk
+                ))
+        finally:
+            if unhandled_failure:
+                self.build_env.build['error'] = unhandled_failure
+            self.build_env.update_build(BUILD_STATE_FINISHED)
 
-        with self.build_env:
+        return self.build_env.build
+
+    def run_setup(self, record=True):
+        """Run setup in the local environment.
+
+        Return True if successful.
+
+        """
+        self.setup_env = LocalEnvironment(
+            project=self.project,
+            version=self.version,
+            build=self.build,
+            record=record
+        )
+
+        # Environment used for code checkout & initial configuration reading
+        with self.setup_env:
             if self.project.skip:
                 raise BuildEnvironmentError(
                     _('Builds for this project are temporarily disabled'))
             try:
                 self.setup_vcs()
-            except vcs_support_utils.LockTimeout, e:
+            except vcs_support_utils.LockTimeout as e:
                 self.retry(exc=e, throw=False)
                 raise BuildEnvironmentError(
                     'Version locked, retrying in 5 minutes.',
                     status_code=423
                 )
 
+            try:
+                self.config = load_yaml_config(version=self.version)
+            except ConfigError as e:
+                raise BuildEnvironmentError(
+                    'Problem parsing YAML configuration. {0}'.format(str(e))
+                )
+
+        if self.setup_env.failure or self.config is None:
+            self._log('Failing build because of setup failure: %s' % self.setup_env.failure)
+
+            # Send notification to users only if the build didn't fail because of
+            # LockTimeout: this exception occurs when a build is triggered before the previous
+            # one has finished (e.g. two webhooks, one after the other)
+            if not isinstance(self.setup_env.failure, vcs_support_utils.LockTimeout):
+                self.send_notifications()
+
+            self.setup_env.update_build(state=BUILD_STATE_FINISHED)
+            return False
+
+        if self.setup_env.successful and not self.project.has_valid_clone:
+            self.set_valid_clone()
+
+        return True
+
+    def run_build(self, docker=False, record=True):
+        """Build the docs in an environment.
+
+        If `docker` is True, or Docker is enabled by the settings.DOCKER_ENABLE
+        setting, then build in a Docker environment. Otherwise build locally.
+
+        """
+        env_vars = self.get_env_vars()
+
+        if docker or settings.DOCKER_ENABLE:
+            env_cls = DockerEnvironment
+        else:
+            env_cls = LocalEnvironment
+        self.build_env = env_cls(project=self.project, version=self.version,
+                                 build=self.build, record=record, environment=env_vars)
+
+        # Environment used for building code, usually with Docker
+        with self.build_env:
+
             if self.project.documentation_type == 'auto':
                 self.update_documentation_type()
-
-            # Read YAML config after code checkout has been run
-            self.config = load_yaml_config(version=self.version)
 
             python_env_cls = Virtualenv
             if self.config.use_conda:
@@ -140,46 +227,50 @@ class UpdateDocsTask(Task):
                                              build_env=self.build_env,
                                              config=self.config)
 
-            self.setup_environment()
+            try:
+                self.setup_environment()
 
-            # TODO the build object should have an idea of these states, extend
-            # the model to include an idea of these outcomes
-            outcomes = self.build_docs()
-            build_id = self.build.get('id')
+                # TODO the build object should have an idea of these states, extend
+                # the model to include an idea of these outcomes
+                outcomes = self.build_docs()
+                build_id = self.build.get('id')
+            except SoftTimeLimitExceeded:
+                raise BuildEnvironmentError(_('Build exited due to time out'))
 
-            # Web Server Tasks
+            # Finalize build and update web servers
             if build_id:
-                finish_build.delay(
-                    version_pk=self.version.pk,
-                    build_pk=build_id,
-                    hostname=socket.gethostname(),
-                    html=outcomes['html'],
-                    search=outcomes['search'],
-                    localmedia=outcomes['localmedia'],
-                    pdf=outcomes['pdf'],
-                    epub=outcomes['epub'],
+                self.update_app_instances(
+                    html=bool(outcomes['html']),
+                    search=bool(outcomes['search']),
+                    localmedia=bool(outcomes['localmedia']),
+                    pdf=bool(outcomes['pdf']),
+                    epub=bool(outcomes['epub']),
                 )
+            else:
+                log.warning('No build ID, not syncing files')
 
         if self.build_env.failed:
             self.send_notifications()
 
+        self.build_env.update_build(state=BUILD_STATE_FINISHED)
+        build_complete.send(sender=Build, build=self.build_env.build)
+
     @staticmethod
     def get_project(project_pk):
         """Get project from API"""
-        project_data = api_v1.project(project_pk).get()
-        project = make_api_project(project_data)
-        return project
+        project_data = api_v2.project(project_pk).get()
+        return APIProject(**project_data)
 
     @staticmethod
     def get_version(project, version_pk):
         """Ensure we're using a sane version"""
         if version_pk:
-            version_data = api_v1.version(version_pk).get()
+            version_data = api_v2.version(version_pk).get()
         else:
-            version_data = (api_v1
+            version_data = (api_v2
                             .version(project.slug)
                             .get(slug=LATEST)['objects'][0])
-        return make_api_version(version_data)
+        return APIVersion(**version_data)
 
     @staticmethod
     def get_build(build_pk):
@@ -191,9 +282,62 @@ class UpdateDocsTask(Task):
         build = {}
         if build_pk:
             build = api_v2.build(build_pk).get()
-        return dict((key, val) for (key, val) in build.items()
+        return dict((key, val) for (key, val) in list(build.items())
                     if key not in ['project', 'version', 'resource_uri',
                                    'absolute_uri'])
+
+    def setup_vcs(self):
+        """
+        Update the checkout of the repo to make sure it's the latest.
+
+        This also syncs versions in the DB.
+
+        :param build_env: Build environment
+        """
+        self.setup_env.update_build(state=BUILD_STATE_CLONING)
+
+        self._log(msg='Updating docs from VCS')
+        try:
+            update_imported_docs(self.version.pk)
+            commit = self.project.vcs_repo(self.version.slug).commit
+            if commit:
+                self.build['commit'] = commit
+        except ProjectImportError as e:
+            log.exception(
+                LOG_TEMPLATE.format(project=self.project.slug,
+                                    version=self.version.slug,
+                                    msg='Failed to import Project: '),
+            )
+            raise BuildEnvironmentError('Failed to import project: %s' % e,
+                                        status_code=404)
+
+    def get_env_vars(self):
+        """Get bash environment variables used for all builder commands."""
+        env = {
+            'READTHEDOCS': True,
+            'READTHEDOCS_VERSION': self.version.slug,
+            'READTHEDOCS_PROJECT': self.project.slug
+        }
+
+        if self.config.use_conda:
+            env.update({
+                'CONDA_ENVS_PATH': os.path.join(self.project.doc_path, 'conda'),
+                'CONDA_DEFAULT_ENV': self.version.slug,
+                'BIN_PATH': os.path.join(self.project.doc_path, 'conda', self.version.slug, 'bin')
+            })
+        else:
+            env.update({
+                'BIN_PATH': os.path.join(self.project.doc_path, 'envs', self.version.slug, 'bin')
+            })
+
+        return env
+
+    def set_valid_clone(self):
+        """Mark on the project that it has been cloned properly."""
+        project_data = api_v2.project(self.project.pk).get()
+        project_data['has_valid_clone'] = True
+        api_v2.project(self.project.pk).put(project_data)
+        self.project.has_valid_clone = True
 
     def update_documentation_type(self):
         """
@@ -209,25 +353,42 @@ class UpdateDocsTask(Task):
         api_v2.project(self.project.pk).put(project_data)
         self.project.documentation_type = ret
 
-    def setup_vcs(self):
+    def update_app_instances(self, html=False, localmedia=False, search=False,
+                             pdf=False, epub=False):
+        """Update application instances with build artifacts
+
+        This triggers updates across application instances for html, pdf, epub,
+        downloads, and search. Tasks are broadcast to all web servers from here.
         """
-        Update the checkout of the repo to make sure it's the latest.
-
-        This also syncs versions in the DB.
-
-        :param build_env: Build environment
-        """
-        self.build_env.update_build(state=BUILD_STATE_CLONING)
-
-        self._log(msg='Updating docs from VCS')
+        # Update version if we have successfully built HTML output
         try:
-            update_imported_docs(self.version.pk)
-            commit = self.project.vcs_repo(self.version.slug).commit
-            if commit:
-                self.build['commit'] = commit
-        except ProjectImportError:
-            raise BuildEnvironmentError('Failed to import project',
-                                        status_code=404)
+            if html:
+                version = api_v2.version(self.version.pk)
+                version.patch({
+                    'active': True,
+                    'built': True,
+                })
+        except HttpClientError:
+            log.exception('Updating version failed, skipping file sync: version=%s' % self.version)
+
+        # Broadcast finalization steps to web application instances
+        broadcast(
+            type='app',
+            task=sync_files,
+            args=[
+                self.project.pk,
+                self.version.pk,
+            ],
+            kwargs=dict(
+                hostname=socket.gethostname(),
+                html=html,
+                localmedia=localmedia,
+                search=search,
+                pdf=pdf,
+                epub=epub,
+            ),
+            callback=sync_callback.s(version_pk=self.version.pk, commit=self.build['commit']),
+        )
 
     def setup_environment(self):
         """
@@ -239,11 +400,15 @@ class UpdateDocsTask(Task):
         """
         self.build_env.update_build(state=BUILD_STATE_INSTALLING)
 
-        self.python_env.delete_existing_build_dir()
-        self.python_env.setup_base()
-        self.python_env.install_core_requirements()
-        self.python_env.install_user_requirements()
-        self.python_env.install_package()
+        with self.project.repo_nonblockinglock(
+                version=self.version,
+                max_lock_age=getattr(settings, 'REPO_LOCK_SECONDS', 30)):
+
+            self.python_env.delete_existing_build_dir()
+            self.python_env.setup_base()
+            self.python_env.install_core_requirements()
+            self.python_env.install_user_requirements()
+            self.python_env.install_package()
 
     def build_docs(self):
         """Wrapper to all build functions
@@ -286,14 +451,12 @@ class UpdateDocsTask(Task):
 
         # Gracefully attempt to move files via task on web workers.
         try:
-            move_files.delay(
-                version_pk=self.version.pk,
-                html=True,
-                hostname=socket.gethostname(),
-            )
+            broadcast(type='app', task=move_files,
+                      args=[self.version.pk, socket.gethostname()],
+                      kwargs=dict(html=True)
+                      )
         except socket.error:
-            # TODO do something here
-            pass
+            log.exception('move_files task has failed on socket error.')
 
         return success
 
@@ -308,6 +471,9 @@ class UpdateDocsTask(Task):
 
     def build_docs_localmedia(self):
         """Get local media files with separate build"""
+        if 'htmlzip' not in self.config.formats:
+            return False
+
         if self.build_localmedia:
             if self.project.is_type_sphinx:
                 return self.build_docs_class('sphinx_singlehtmllocalmedia')
@@ -315,17 +481,17 @@ class UpdateDocsTask(Task):
 
     def build_docs_pdf(self):
         """Build PDF docs"""
-        if (self.project.slug in HTML_ONLY or
-                not self.project.is_type_sphinx or
-                not self.project.enable_pdf_build):
+        if ('pdf' not in self.config.formats or
+            self.project.slug in HTML_ONLY or
+                not self.project.is_type_sphinx):
             return False
         return self.build_docs_class('sphinx_pdf')
 
     def build_docs_epub(self):
         """Build ePub docs"""
-        if (self.project.slug in HTML_ONLY or
-                not self.project.is_type_sphinx or
-                not self.project.enable_epub_build):
+        if ('epub' not in self.config.formats or
+            self.project.slug in HTML_ONLY or
+                not self.project.is_type_sphinx):
             return False
         return self.build_docs_class('sphinx_epub')
 
@@ -346,18 +512,15 @@ class UpdateDocsTask(Task):
         send_notifications.delay(self.version.pk, build_pk=self.build['id'])
 
 
-update_docs = celery_app.tasks[UpdateDocsTask.name]
-
-
-@task()
+@app.task()
 def update_imported_docs(version_pk):
     """
     Check out or update the given project's repository
 
     :param version_pk: Version id to update
     """
-    version_data = api_v1.version(version_pk).get()
-    version = make_api_version(version_data)
+    version_data = api_v2.version(version_pk).get()
+    version = APIVersion(**version_data)
     project = version.project
     ret_dict = {}
 
@@ -397,8 +560,6 @@ def update_imported_docs(version_pk):
                 version_slug = LATEST
                 version_repo = project.vcs_repo(version_slug)
                 ret_dict['checkout'] = version_repo.update()
-        except Exception:
-            raise
         finally:
             after_vcs.send(sender=version)
 
@@ -422,48 +583,47 @@ def update_imported_docs(version_pk):
 
         try:
             api_v2.project(project.pk).sync_versions.post(version_post_data)
-        except Exception, e:
-            print "Sync Versions Exception: %s" % e.message
+        except HttpClientError:
+            log.exception("Sync Versions Exception")
+        except Exception:
+            log.exception("Unknown Sync Versions Exception")
     return ret_dict
 
 
 # Web tasks
-@task(queue='web')
-def finish_build(version_pk, build_pk, hostname=None, html=False,
-                 localmedia=False, search=False, pdf=False, epub=False):
-    """Build Finished, do house keeping bits"""
-    version = Version.objects.get(pk=version_pk)
-    build = Build.objects.get(pk=build_pk)
+@app.task(queue='web')
+def sync_files(project_pk, version_pk, hostname=None, html=False,
+               localmedia=False, search=False, pdf=False, epub=False):
+    """Sync build artifacts to application instances
 
-    if html:
-        version.active = True
-        version.built = True
-        version.save()
-
+    This task broadcasts from a build instance on build completion and
+    performs synchronization of build artifacts on each application instance.
+    """
+    # Clean up unused artifacts
     if not pdf:
-        clear_pdf_artifacts(version)
+        clear_pdf_artifacts(version_pk)
     if not epub:
-        clear_epub_artifacts(version)
+        clear_epub_artifacts(version_pk)
 
+    # Sync files to the web servers
     move_files(
-        version_pk=version_pk,
-        hostname=hostname,
+        version_pk,
+        hostname,
         html=html,
         localmedia=localmedia,
         search=search,
         pdf=pdf,
-        epub=epub,
+        epub=epub
     )
 
-    symlink(project=version.project)
+    # Symlink project
+    symlink_project(project_pk)
 
-    # Delayed tasks
-    update_static_metadata.delay(version.project.pk)
-    fileify.delay(version.pk, commit=build.commit)
-    update_search.delay(version.pk, commit=build.commit)
+    # Update metadata
+    update_static_metadata(project_pk)
 
 
-@task(queue='web')
+@app.task(queue='web')
 def move_files(version_pk, hostname, html=False, localmedia=False, search=False,
                pdf=False, epub=False):
     """Task to move built documentation to web servers
@@ -482,6 +642,8 @@ def move_files(version_pk, hostname, html=False, localmedia=False, search=False,
     :type epub: bool
     """
     version = Version.objects.get(pk=version_pk)
+    log.debug(LOG_TEMPLATE.format(project=version.project.slug, version=version.slug,
+                                  msg='Moving files'))
 
     if html:
         from_path = version.project.artifact_path(
@@ -490,18 +652,18 @@ def move_files(version_pk, hostname, html=False, localmedia=False, search=False,
         Syncer.copy(from_path, target, host=hostname)
 
     if 'sphinx' in version.project.documentation_type:
-        if localmedia:
-            from_path = version.project.artifact_path(
-                version=version.slug, type_='sphinx_localmedia')
-            to_path = version.project.get_production_media_path(
-                type_='htmlzip', version_slug=version.slug, include_file=False)
-            Syncer.copy(from_path, to_path, host=hostname)
-
         if search:
             from_path = version.project.artifact_path(
                 version=version.slug, type_='sphinx_search')
             to_path = version.project.get_production_media_path(
                 type_='json', version_slug=version.slug, include_file=False)
+            Syncer.copy(from_path, to_path, host=hostname)
+
+        if localmedia:
+            from_path = version.project.artifact_path(
+                version=version.slug, type_='sphinx_localmedia')
+            to_path = version.project.get_production_media_path(
+                type_='htmlzip', version_slug=version.slug, include_file=False)
             Syncer.copy(from_path, to_path, host=hostname)
 
         # Always move PDF's because the return code lies.
@@ -527,7 +689,7 @@ def move_files(version_pk, hostname, html=False, localmedia=False, search=False,
             Syncer.copy(from_path, to_path, host=hostname)
 
 
-@task(queue='web')
+@app.task(queue='web')
 def update_search(version_pk, commit, delete_non_commit_files=True):
     """Task to update search indexes
 
@@ -562,7 +724,35 @@ def update_search(version_pk, commit, delete_non_commit_files=True):
     )
 
 
-@task(queue='web')
+@app.task(queue='web')
+def symlink_project(project_pk):
+    project = Project.objects.get(pk=project_pk)
+    for symlink in [PublicSymlink, PrivateSymlink]:
+        sym = symlink(project=project)
+        sym.run()
+
+
+@app.task(queue='web')
+def symlink_domain(project_pk, domain_pk, delete=False):
+    project = Project.objects.get(pk=project_pk)
+    domain = Domain.objects.get(pk=domain_pk)
+    for symlink in [PublicSymlink, PrivateSymlink]:
+        sym = symlink(project=project)
+        if delete:
+            sym.remove_symlink_cname(domain)
+        else:
+            sym.symlink_cnames(domain)
+
+
+@app.task(queue='web')
+def symlink_subproject(project_pk):
+    project = Project.objects.get(pk=project_pk)
+    for symlink in [PublicSymlink, PrivateSymlink]:
+        sym = symlink(project=project)
+        sym.symlink_subprojects()
+
+
+@app.task(queue='web')
 def fileify(version_pk, commit):
     """
     Create ImportedFile objects for all of a version's files.
@@ -630,15 +820,15 @@ def _manage_imported_files(version, path, commit):
                                 ).exclude(commit=commit).delete()
     # Purge Cache
     changed_files = [resolve_path(
-        version.project, filename=file, version_slug=version.slug,
-    ) for file in changed_files]
+        version.project, filename=fname, version_slug=version.slug,
+    ) for fname in changed_files]
     cdn_ids = getattr(settings, 'CDN_IDS', None)
     if cdn_ids:
         if version.project.slug in cdn_ids:
             purge(cdn_ids[version.project.slug], changed_files)
 
 
-@task(queue='web')
+@app.task(queue='web')
 def send_notifications(version_pk, build_pk):
     version = Version.objects.get(pk=version_pk)
     build = Build.objects.get(pk=build_pk)
@@ -652,8 +842,8 @@ def send_notifications(version_pk, build_pk):
 def email_notification(version, build, email):
     """Send email notifications for build failure
 
-    :param version: :py:cls:`Version` instance that failed
-    :param build: :py:cls:`Build` instance that failed
+    :param version: :py:class:`Version` instance that failed
+    :param build: :py:class:`Build` instance that failed
     :param email: Email recipient address
     """
     log.debug(LOG_TEMPLATE.format(project=version.project.slug, version=version.slug,
@@ -707,7 +897,7 @@ def webhook_notification(version, build, hook_url):
     requests.post(hook_url, data=data)
 
 
-@task(queue='web')
+@app.task(queue='web')
 def update_static_metadata(project_pk, path=None):
     """Update static metadata JSON file
 
@@ -744,7 +934,6 @@ def update_static_metadata(project_pk, path=None):
         fh = open(path, 'w+')
         json.dump(metadata, fh)
         fh.close()
-        Syncer.copy(path, path, host=socket.gethostname(), file=True)
     except (AttributeError, IOError) as e:
         log.debug(LOG_TEMPLATE.format(
             project=project.slug,
@@ -754,7 +943,7 @@ def update_static_metadata(project_pk, path=None):
 
 
 # Random Tasks
-@task()
+@app.task()
 def remove_dir(path):
     """
     Remove a directory on the build/celery server.
@@ -763,10 +952,10 @@ def remove_dir(path):
     can kill things on the build server.
     """
     log.info("Removing %s", path)
-    shutil.rmtree(path)
+    shutil.rmtree(path, ignore_errors=True)
 
 
-@task(queue='web')
+@app.task()
 def clear_artifacts(version_pk):
     """Remove artifacts from the web servers"""
     version = Version.objects.get(pk=version_pk)
@@ -776,36 +965,43 @@ def clear_artifacts(version_pk):
     clear_html_artifacts(version)
 
 
+@app.task()
 def clear_pdf_artifacts(version):
-    run_on_app_servers('rm -rf %s'
-                       % version.project.get_production_media_path(
-                           type_='pdf', version_slug=version.slug))
+    if isinstance(version, int):
+        version = Version.objects.get(pk=version)
+    remove_dir(version.project.get_production_media_path(
+        type_='pdf', version_slug=version.slug))
 
 
+@app.task()
 def clear_epub_artifacts(version):
-    run_on_app_servers('rm -rf %s'
-                       % version.project.get_production_media_path(
-                           type_='epub', version_slug=version.slug))
+    if isinstance(version, int):
+        version = Version.objects.get(pk=version)
+    remove_dir(version.project.get_production_media_path(
+        type_='epub', version_slug=version.slug))
 
 
+@app.task()
 def clear_htmlzip_artifacts(version):
-    run_on_app_servers('rm -rf %s'
-                       % version.project.get_production_media_path(
-                           type_='htmlzip', version_slug=version.slug))
+    if isinstance(version, int):
+        version = Version.objects.get(pk=version)
+    remove_dir(version.project.get_production_media_path(
+        type_='htmlzip', version_slug=version.slug))
 
 
+@app.task()
 def clear_html_artifacts(version):
-    run_on_app_servers('rm -rf %s' % version.project.rtd_build_path(version=version.slug))
+    if isinstance(version, int):
+        version = Version.objects.get(pk=version)
+    remove_dir(version.project.rtd_build_path(version=version.slug))
 
 
-@task(queue='web')
-def remove_path_from_web(path):
+@app.task(queue='web')
+def sync_callback(_, version_pk, commit, *args, **kwargs):
     """
-    Remove the given path from the web servers file system.
-    """
-    # Santity check  for spaces in the path since spaces would result in
-    # deleting unpredictable paths with "rm -rf".
-    assert ' ' not in path, "No spaces allowed in path"
+    This will be called once the sync_files tasks are done.
 
-    # TODO: We need some proper escaping here for the given path.
-    run_on_app_servers('rm -rf {path}'.format(path=path))
+    The first argument is the result from previous tasks, which we discard.
+    """
+    fileify(version_pk, commit=commit)
+    update_search(version_pk, commit=commit)

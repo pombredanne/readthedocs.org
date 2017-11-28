@@ -1,7 +1,7 @@
-"""
-Common mixin classes for views
-"""
+"""Common mixin classes for views"""
 
+from __future__ import absolute_import
+from builtins import object
 from vanilla import ListView
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator

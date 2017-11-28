@@ -1,15 +1,19 @@
 """OAuth utility functions"""
 
+from __future__ import absolute_import
+from builtins import str
 import logging
 import json
 import re
 
 from django.conf import settings
+from django.core.urlresolvers import reverse
 from requests.exceptions import RequestException
 from allauth.socialaccount.models import SocialToken
 from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
 
 from readthedocs.builds import utils as build_utils
+from readthedocs.integrations.models import Integration
 from readthedocs.restapi.client import api
 
 from ..models import RemoteOrganization, RemoteRepository
@@ -27,7 +31,7 @@ class GitHubService(Service):
 
     adapter = GitHubOAuth2Adapter
     # TODO replace this with a less naive check
-    url_pattern = re.compile(r'^github\.com\/')
+    url_pattern = re.compile(r'github\.com')
 
     def sync(self):
         """Sync repositories and organizations"""
@@ -92,7 +96,7 @@ class GitHubService(Service):
                 )
                 repo.users.add(self.user)
             if repo.organization and repo.organization != organization:
-                log.debug('Not importing %s because mismatched orgs' %
+                log.debug('Not importing %s because mismatched orgs',
                           fields['name'])
                 return None
             else:
@@ -114,7 +118,7 @@ class GitHubService(Service):
             repo.save()
             return repo
         else:
-            log.debug('Not importing %s because mismatched type' %
+            log.debug('Not importing %s because mismatched type',
                       fields['name'])
 
     def create_organization(self, fields):
@@ -144,35 +148,46 @@ class GitHubService(Service):
         organization.save()
         return organization
 
-    def paginate(self, url):
-        """Combines return from GitHub pagination
+    def get_next_url_to_paginate(self, response):
+        return response.links.get('next', {}).get('url')
 
-        :param url: start url to get the data from.
+    def get_paginated_results(self, response):
+        return response.json()
 
-        See https://developer.github.com/v3/#pagination
-        """
-        resp = self.get_session().get(url)
-        result = resp.json()
-        next_url = resp.links.get('next', {}).get('url')
-        if next_url:
-            result.extend(self.paginate(next_url))
-        return result
+    def get_webhook_data(self, project, integration):
+        """Get webhook JSON data to post to the API"""
+        return json.dumps({
+            'name': 'web',
+            'active': True,
+            'config': {
+                'url': 'https://{domain}{path}'.format(
+                    domain=settings.PRODUCTION_DOMAIN,
+                    path=reverse(
+                        'api_webhook',
+                        kwargs={'project_slug': project.slug,
+                                'integration_pk': integration.pk}
+                    )
+                ),
+                'content_type': 'json',
+            },
+            'events': ['push', 'pull_request'],
+        })
 
     def setup_webhook(self, project):
         """Set up GitHub project webhook for project
 
         :param project: project to set up webhook for
         :type project: Project
-        :returns: boolean based on webhook set up success
-        :rtype: bool
+        :returns: boolean based on webhook set up success, and requests Response object
+        :rtype: (Bool, Response)
         """
         session = self.get_session()
         owner, repo = build_utils.get_github_username_repo(url=project.repo)
-        data = json.dumps({
-            'name': 'readthedocs',
-            'active': True,
-            'config': {'url': 'https://{domain}/github'.format(domain=settings.PRODUCTION_DOMAIN)}
-        })
+        integration, _ = Integration.objects.get_or_create(
+            project=project,
+            integration_type=Integration.GITHUB_WEBHOOK,
+        )
+        data = self.get_webhook_data(project, integration)
         resp = None
         try:
             resp = session.post(
@@ -181,18 +196,72 @@ class GitHubService(Service):
                 data=data,
                 headers={'content-type': 'application/json'}
             )
-            if resp.status_code == 201:
+            # GitHub will return 200 if already synced
+            if resp.status_code in [200, 201]:
+                recv_data = resp.json()
+                integration.provider_data = recv_data
+                integration.save()
                 log.info('GitHub webhook creation successful for project: %s',
                          project)
-                return True
-        except RequestException:
+                return (True, resp)
+        # Catch exceptions with request or deserializing JSON
+        except (RequestException, ValueError):
             log.error('GitHub webhook creation failed for project: %s',
                       project, exc_info=True)
-            pass
         else:
             log.error('GitHub webhook creation failed for project: %s',
                       project)
-            return False
+            # Response data should always be JSON, still try to log if not though
+            try:
+                debug_data = resp.json()
+            except ValueError:
+                debug_data = resp.content
+            log.debug('GitHub webhook creation failure response: %s',
+                      debug_data)
+            return (False, resp)
+
+    def update_webhook(self, project, integration):
+        """Update webhook integration
+
+        :param project: project to set up webhook for
+        :type project: Project
+        :param integration: Webhook integration to update
+        :type integration: Integration
+        :returns: boolean based on webhook update success, and requests Response object
+        :rtype: (Bool, Response)
+        """
+        session = self.get_session()
+        data = self.get_webhook_data(project, integration)
+        url = integration.provider_data.get('url')
+        resp = None
+        try:
+            resp = session.patch(
+                url,
+                data=data,
+                headers={'content-type': 'application/json'}
+            )
+            # GitHub will return 200 if already synced
+            if resp.status_code in [200, 201]:
+                recv_data = resp.json()
+                integration.provider_data = recv_data
+                integration.save()
+                log.info('GitHub webhook creation successful for project: %s',
+                         project)
+                return (True, resp)
+        # Catch exceptions with request or deserializing JSON
+        except (RequestException, ValueError):
+            log.error('GitHub webhook update failed for project: %s',
+                      project, exc_info=True)
+        else:
+            log.error('GitHub webhook update failed for project: %s',
+                      project)
+            try:
+                debug_data = resp.json()
+            except ValueError:
+                debug_data = resp.content
+            log.debug('GitHub webhook creation failure response: %s',
+                      debug_data)
+            return (False, resp)
 
     @classmethod
     def get_token_for_project(cls, project, force_local=False):
@@ -212,5 +281,5 @@ class GitHubService(Service):
                     if tokens.exists():
                         token = tokens[0].token
         except Exception:
-            log.error('Failed to get token for user', exc_info=True)
+            log.exception('Failed to get token for project')
         return token

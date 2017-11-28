@@ -15,7 +15,7 @@ Activating Conda
 ----------------
 
 Conda Support is the first feature enabled with :doc:`yaml-config`.
-You can enable it by creating a `readthedocs.yml` file in the root of your repsitory with the contents:
+You can enable it by creating a `readthedocs.yml` file in the root of your repository with the contents:
 
 .. code-block:: yaml
 
@@ -25,9 +25,8 @@ You can enable it by creating a `readthedocs.yml` file in the root of your repsi
 This Conda environment will also have Sphinx and other build time dependencies installed.
 It will use the same order of operations that we support currently:
 
-* Environment Creation (``conda create``)
+* Environment Creation (``conda env create``)
 * Dependency Installation (Sphinx)
-* User Package Installation (``conda env update``)
 
 Custom Installs
 ---------------

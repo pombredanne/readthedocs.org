@@ -8,10 +8,11 @@ uses:
   - celery
 
 ignore-paths:
-  - docs
+  - docs/
 
 ignore-patterns:
   - /migrations/
+  - local_settings.py
 
 pep8:
   full: true
@@ -29,4 +30,12 @@ mccabe:
   run: false
 
 pep257:
-  run: false
+  run: true
+  disable:
+    - D105
+    - D211
+    - D104
+
+pyflakes:
+  disable:
+    - F999

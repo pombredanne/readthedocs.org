@@ -1,16 +1,20 @@
+from __future__ import absolute_import
 import mock
 
 from django.test import TestCase
+from django.test.utils import override_settings
+
 from readthedocs.projects.models import Project
 from readthedocs.builds.constants import LATEST
 from readthedocs.core.templatetags import core_tags
 
 
+@override_settings(USE_SUBDOMAIN=False, PUBLIC_DOMAIN='readthedocs.org')
 class CoreTagsTests(TestCase):
     fixtures = ["eric", "test_data"]
 
     def setUp(self):
-        with mock.patch('readthedocs.projects.models.update_static_metadata'):
+        with mock.patch('readthedocs.projects.models.broadcast'):
             self.client.login(username='eric', password='test')
             self.pip = Project.objects.get(slug='pip')
             self.pip_fr = Project.objects.create(name="PIP-FR", slug='pip-fr', language='fr', main_language_project=self.pip)

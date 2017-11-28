@@ -1,11 +1,12 @@
-from django.conf.urls import patterns, url
+"""URL config for the bookmarks app."""
+
+from __future__ import absolute_import
+from django.conf.urls import url
 from readthedocs.bookmarks.views import BookmarkListView
 from readthedocs.bookmarks.views import BookmarkAddView, BookmarkRemoveView
 from readthedocs.bookmarks.views import BookmarkExistsView
 
-urlpatterns = patterns(
-    # base view, flake8 complains if it is on the previous line.
-    'readthedocs.bookmarks.views',
+urlpatterns = [
     url(r'^$',
         BookmarkListView.as_view(),
         name='bookmark_list'),
@@ -25,4 +26,4 @@ urlpatterns = patterns(
     url(r'^exists/$',
         BookmarkExistsView.as_view(),
         name='bookmark_exists'),
-)
+]

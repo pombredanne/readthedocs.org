@@ -1,18 +1,24 @@
+"""An abstraction over virtualenv and Conda environments."""
+
+from __future__ import absolute_import
+from builtins import object
 import logging
 import os
 import shutil
 
 from django.conf import settings
 
-from readthedocs.builds.constants import LATEST
 from readthedocs.doc_builder.config import ConfigWrapper
 from readthedocs.doc_builder.loader import get_builder_class
 from readthedocs.projects.constants import LOG_TEMPLATE
+from readthedocs.projects.models import Feature
 
 log = logging.getLogger(__name__)
 
 
 class PythonEnvironment(object):
+
+    """An isolated environment into which Python packages can be installed."""
 
     def __init__(self, version, build_env, config=None):
         self.version = version
@@ -35,26 +41,29 @@ class PythonEnvironment(object):
 
         # Handle deleting old build dir
         build_dir = os.path.join(
-            self.venv_path(version=self.version.slug),
+            self.venv_path(),
             'build')
         if os.path.exists(build_dir):
             self._log('Removing existing build directory')
             shutil.rmtree(build_dir)
 
     def install_package(self):
-        setup_path = os.path.join(self.checkout_path, 'setup.py')
-        if os.path.isfile(setup_path) and self.config.install_project:
-            if getattr(settings, 'USE_PIP_INSTALL', False):
+        if self.config.install_project:
+            if self.config.pip_install or getattr(settings, 'USE_PIP_INSTALL', False):
+                extra_req_param = ''
+                if self.config.extra_requirements:
+                    extra_req_param = '[{0}]'.format(
+                        ','.join(self.config.extra_requirements))
                 self.build_env.run(
                     'python',
-                    self.venv_bin(version=self.version.slug, filename='pip'),
+                    self.venv_bin(filename='pip'),
                     'install',
                     '--ignore-installed',
                     '--cache-dir',
                     self.project.pip_cache_path,
-                    '.',
+                    '.{0}'.format(extra_req_param),
                     cwd=self.checkout_path,
-                    bin_path=self.venv_bin(version=self.version.slug)
+                    bin_path=self.venv_bin()
                 )
             else:
                 self.build_env.run(
@@ -63,17 +72,16 @@ class PythonEnvironment(object):
                     'install',
                     '--force',
                     cwd=self.checkout_path,
-                    bin_path=self.venv_bin(version=self.version.slug)
+                    bin_path=self.venv_bin()
                 )
 
-    def venv_bin(self, version=LATEST, filename=None):
+    def venv_bin(self, filename=None):
         """Return path to the virtualenv bin path, or a specific binary
 
-        :param version: Version slug to use in path name
         :param filename: If specified, add this filename to the path return
         :returns: Path to virtualenv bin or filename in virtualenv bin
         """
-        parts = [self.venv_path(version), 'bin']
+        parts = [self.venv_path(), 'bin']
         if filename is not None:
             parts.append(filename)
         return os.path.join(*parts)
@@ -81,43 +89,69 @@ class PythonEnvironment(object):
 
 class Virtualenv(PythonEnvironment):
 
-    def venv_path(self, version=LATEST):
-        return os.path.join(self.project.doc_path, 'envs', version)
+    """A virtualenv_ environment.
+
+    .. _virtualenv: https://virtualenv.pypa.io/
+
+    """
+
+    def venv_path(self):
+        return os.path.join(self.project.doc_path, 'envs', self.version.slug)
 
     def setup_base(self):
         site_packages = '--no-site-packages'
         if self.config.use_system_site_packages:
             site_packages = '--system-site-packages'
-        env_path = self.venv_path(version=self.version.slug)
+        env_path = self.venv_path()
         self.build_env.run(
             self.config.python_interpreter,
             '-mvirtualenv',
             site_packages,
+            '--no-download',
             env_path,
+            bin_path=None,  # Don't use virtualenv bin that doesn't exist yet
         )
 
     def install_core_requirements(self):
+        """Install basic Read the Docs requirements into the virtualenv."""
         requirements = [
-            'sphinx==1.3.1',
-            'Pygments==2.0.2',
-            'setuptools==18.6.1',
-            'docutils==0.11',
-            'mkdocs==0.14.0',
+            'Pygments==2.2.0',
+            # Assume semver for setuptools version, support up to next backwards
+            # incompatible release
+            self.project.get_feature_value(
+                Feature.USE_SETUPTOOLS_LATEST,
+                positive='setuptools<37',
+                negative='setuptools==28.8.0',
+            ),
+            'docutils==0.13.1',
             'mock==1.0.1',
             'pillow==2.6.1',
-            'readthedocs-sphinx-ext==0.5.4',
-            'sphinx-rtd-theme==0.1.9',
             'alabaster>=0.7,<0.8,!=0.7.5',
             'commonmark==0.5.4',
-            'recommonmark==0.1.1',
+            'recommonmark==0.4.0',
         ]
+
+        if self.project.documentation_type == 'mkdocs':
+            requirements.append('mkdocs==0.15.0')
+        else:
+            # We will assume semver here and only automate up to the next
+            # backward incompatible release: 2.x
+            requirements.extend([
+                self.project.get_feature_value(
+                    Feature.USE_SPHINX_LATEST,
+                    positive='sphinx<2',
+                    negative='sphinx==1.5.6',
+                ),
+                'sphinx-rtd-theme<0.3',
+                'readthedocs-sphinx-ext<0.6'
+            ])
 
         cmd = [
             'python',
-            self.venv_bin(version=self.version.slug, filename='pip'),
+            self.venv_bin(filename='pip'),
             'install',
             '--use-wheel',
-            '-U',
+            '--upgrade',
             '--cache-dir',
             self.project.pip_cache_path,
         ]
@@ -130,7 +164,7 @@ class Virtualenv(PythonEnvironment):
         cmd.extend(requirements)
         self.build_env.run(
             *cmd,
-            bin_path=self.venv_bin(version=self.version.slug)
+            bin_path=self.venv_bin()
         )
 
     def install_user_requirements(self):
@@ -147,23 +181,36 @@ class Virtualenv(PythonEnvironment):
                         break
 
         if requirements_file_path:
-            self.build_env.run(
+            args = [
                 'python',
-                self.venv_bin(version=self.version.slug, filename='pip'),
+                self.venv_bin(filename='pip'),
                 'install',
+            ]
+            if self.project.has_feature(Feature.PIP_ALWAYS_UPGRADE):
+                args += ['--upgrade']
+            args += [
                 '--exists-action=w',
                 '--cache-dir',
                 self.project.pip_cache_path,
                 '-r{0}'.format(requirements_file_path),
+            ]
+            self.build_env.run(
+                *args,
                 cwd=self.checkout_path,
-                bin_path=self.venv_bin(version=self.version.slug)
+                bin_path=self.venv_bin()
             )
 
 
 class Conda(PythonEnvironment):
 
-    def venv_path(self, version=LATEST):
-        return os.path.join(self.project.doc_path, 'conda', version)
+    """A Conda_ environment.
+
+    .. _Conda: https://conda.io/docs/
+
+    """
+
+    def venv_path(self):
+        return os.path.join(self.project.doc_path, 'conda', self.version.slug)
 
     def setup_base(self):
         conda_env_path = os.path.join(self.project.doc_path, 'conda')
@@ -175,27 +222,33 @@ class Conda(PythonEnvironment):
             shutil.rmtree(version_path)
         self.build_env.run(
             'conda',
+            'env',
             'create',
-            '--yes',
             '--name',
             self.version.slug,
-            'python={python_version}'.format(python_version=self.config.python_version),
-            environment={'CONDA_ENVS_PATH': conda_env_path}
+            '--file',
+            self.config.conda_file,
+            bin_path=None,  # Don't use conda bin that doesn't exist yet
         )
 
     def install_core_requirements(self):
-        conda_env_path = os.path.join(self.project.doc_path, 'conda')
-
+        """Install basic Read the Docs requirements into the Conda env."""
         # Use conda for requirements it packages
         requirements = [
-            'sphinx==1.3.1',
-            'Pygments==2.0.2',
-            'docutils==0.11',
-            'mock==1.0.1',
-            'pillow==3.0.0',
-            'sphinx_rtd_theme==0.1.7',
-            'alabaster>=0.7,<0.8,!=0.7.5',
+            'mock',
+            'pillow',
         ]
+
+        # Install pip-only things.
+        pip_requirements = [
+            'recommonmark',
+        ]
+
+        if self.project.documentation_type == 'mkdocs':
+            pip_requirements.append('mkdocs')
+        else:
+            pip_requirements.append('readthedocs-sphinx-ext')
+            requirements.extend(['sphinx', 'sphinx_rtd_theme'])
 
         cmd = [
             'conda',
@@ -206,21 +259,12 @@ class Conda(PythonEnvironment):
         ]
         cmd.extend(requirements)
         self.build_env.run(
-            *cmd,
-            environment={'CONDA_ENVS_PATH': conda_env_path}
+            *cmd
         )
-
-        # Install pip-only things.
-        pip_requirements = [
-            'mkdocs==0.14.0',
-            'readthedocs-sphinx-ext==0.5.4',
-            'commonmark==0.5.4',
-            'recommonmark==0.1.1',
-        ]
 
         pip_cmd = [
             'python',
-            self.venv_bin(version=self.version.slug, filename='pip'),
+            self.venv_bin(filename='pip'),
             'install',
             '-U',
             '--cache-dir',
@@ -229,18 +273,10 @@ class Conda(PythonEnvironment):
         pip_cmd.extend(pip_requirements)
         self.build_env.run(
             *pip_cmd,
-            bin_path=self.venv_bin(version=self.version.slug)
+            bin_path=self.venv_bin()
         )
 
     def install_user_requirements(self):
-        conda_env_path = os.path.join(self.project.doc_path, 'conda')
-        self.build_env.run(
-            'conda',
-            'env',
-            'update',
-            '--name',
-            self.version.slug,
-            '--file',
-            self.config.conda_file,
-            environment={'CONDA_ENVS_PATH': conda_env_path}
-        )
+        # as the conda environment was created by using the ``environment.yml``
+        # defined by the user, there is nothing to update at this point
+        pass

@@ -1,13 +1,19 @@
+"""Defines serializers for each of our models."""
+
+from __future__ import absolute_import
+
+from builtins import object
 from rest_framework import serializers
 
 from readthedocs.builds.models import Build, BuildCommandResult, Version
-from readthedocs.projects.models import Project, Domain
 from readthedocs.oauth.models import RemoteOrganization, RemoteRepository
+from readthedocs.projects.models import Project, Domain
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    canonical_url = serializers.ReadOnlyField(source='get_docs_url')
 
-    class Meta:
+    class Meta(object):
         model = Project
         fields = (
             'id',
@@ -16,6 +22,41 @@ class ProjectSerializer(serializers.ModelSerializer):
             'default_version', 'default_branch',
             'documentation_type',
             'users',
+            'canonical_url',
+        )
+
+
+class ProjectAdminSerializer(ProjectSerializer):
+
+    """Project serializer for admin only access
+
+    Includes special internal fields that don't need to be exposed through the
+    general API, mostly for fields used in the build process
+    """
+
+    features = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        slug_field='feature_id',
+    )
+
+    class Meta(ProjectSerializer.Meta):
+        fields = ProjectSerializer.Meta.fields + (
+            'enable_epub_build',
+            'enable_pdf_build',
+            'conf_py_file',
+            'analytics_code',
+            'cdn_enabled',
+            'container_image',
+            'container_mem_limit',
+            'container_time_limit',
+            'install_project',
+            'use_system_packages',
+            'suffix',
+            'skip',
+            'requirements_file',
+            'python_interpreter',
+            'features',
         )
 
 
@@ -23,7 +64,7 @@ class VersionSerializer(serializers.ModelSerializer):
     project = ProjectSerializer()
     downloads = serializers.DictField(source='get_downloads', read_only=True)
 
-    class Meta:
+    class Meta(object):
         model = Version
         fields = (
             'id',
@@ -34,31 +75,40 @@ class VersionSerializer(serializers.ModelSerializer):
         )
 
 
+class VersionAdminSerializer(VersionSerializer):
+
+    """Version serializer that returns admin project data"""
+
+    project = ProjectAdminSerializer()
+
+
 class BuildCommandSerializer(serializers.ModelSerializer):
+
     run_time = serializers.ReadOnlyField()
 
-    class Meta:
+    class Meta(object):
         model = BuildCommandResult
+        exclude = ('')
 
 
 class BuildSerializer(serializers.ModelSerializer):
 
-    """Readonly version of the build serializer, used for user facing display"""
+    """Build serializer for user display, doesn't display internal fields"""
 
     commands = BuildCommandSerializer(many=True, read_only=True)
     state_display = serializers.ReadOnlyField(source='get_state_display')
 
-    class Meta:
+    class Meta(object):
         model = Build
         exclude = ('builder',)
 
 
-class BuildSerializerFull(BuildSerializer):
+class BuildAdminSerializer(BuildSerializer):
 
-    """Writeable Build instance serializer, for admin access by builders"""
+    """Build serializer for display to admin users and build instances"""
 
-    class Meta:
-        model = Build
+    class Meta(BuildSerializer.Meta):
+        exclude = ()
 
 
 class SearchIndexSerializer(serializers.Serializer):
@@ -71,7 +121,7 @@ class SearchIndexSerializer(serializers.Serializer):
 class DomainSerializer(serializers.ModelSerializer):
     project = ProjectSerializer()
 
-    class Meta:
+    class Meta(object):
         model = Domain
         fields = (
             'id',
@@ -85,7 +135,7 @@ class DomainSerializer(serializers.ModelSerializer):
 
 class RemoteOrganizationSerializer(serializers.ModelSerializer):
 
-    class Meta:
+    class Meta(object):
         model = RemoteOrganization
         exclude = ('json', 'email', 'users')
 
@@ -97,7 +147,7 @@ class RemoteRepositorySerializer(serializers.ModelSerializer):
     organization = RemoteOrganizationSerializer()
     matches = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta(object):
         model = RemoteRepository
         exclude = ('json', 'users')
 

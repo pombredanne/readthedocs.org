@@ -3,6 +3,8 @@
 {% load i18n %}
 
 {% load pagination_tags %}
+{% load privacy_tags %}
+{% load projects_tags %}
 
 {% block title %}Builds{% endblock %}
 
@@ -13,21 +15,6 @@
 {% endblock %}
 
 {% block content %}
-
-{% comment %}
-
-<div class="navigable">
-<h3>
-Filters
-</h3>
-<ul>
-        <form action="" method="get">
-            {{ filter.form.as_p }}
-            <input type="submit" value="Filter" />
-        </form>
-</ul>
-
-{% endcomment %}
 
 
 <!-- BEGIN queue depth warning -->
@@ -44,31 +31,35 @@ Filters
 
 <div id="build_list">
 
-        {% autopaginate filter 15 %}
+        {% autopaginate build_qs 15 %}
 
         <!-- BEGIN builds list -->
         <div class="module">
           <div class="module-wrapper">
 
-            {% if versions %}
+            {% block build_versions %}
+            {% if versions and request.user|is_admin:project %}
             <div class="module-header">
               <div style="float:right;">
-                <form method="post" action="{% url "generic_build" project.pk %}">
+                <form method="post" action="{% url "builds_project_list" project.slug %}">
+                  {% csrf_token %}
                   <ul class="build_a_version">
                     <li style="display: inline-block">
                       <input style="display: inline-block" type="submit" value="{% trans "Build Version:" %}">
                     </li>
                     <li style="display: inline-block">
                       <select id="id_version" name="version_slug">
-                      {% for version in versions %}
+                      {% for version in versions|sort_version_aware %}
                         <option value="{{ version.slug }}">{{ version.slug }}</option>
                       {% endfor %}
                       </select>
                     </li>
-                  </form>
-                </div>
+                  </ul>
+                </form>
               </div>
+            </div>
             {% endif %}
+            {% endblock %}
 
               <h1>{% trans "Recent Builds" %}</h1>
             </div>

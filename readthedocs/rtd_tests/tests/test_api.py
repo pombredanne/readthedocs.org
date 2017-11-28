@@ -1,7 +1,11 @@
+from __future__ import absolute_import
+
 import json
 import base64
 import datetime
 
+import mock
+from builtins import str
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django_dynamic_fixture import get
@@ -9,12 +13,14 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from allauth.socialaccount.models import SocialAccount
 
-from readthedocs.builds.models import Build
+from readthedocs.builds.models import Build, Version
+from readthedocs.integrations.models import Integration
+from readthedocs.projects.models import Project, Feature
 from readthedocs.oauth.models import RemoteRepository, RemoteOrganization
 
 
-super_auth = base64.b64encode('super:test')
-eric_auth = base64.b64encode('eric:test')
+super_auth = base64.b64encode(b'super:test').decode('utf-8')
+eric_auth = base64.b64encode(b'eric:test').decode('utf-8')
 
 
 class APIBuildTests(TestCase):
@@ -153,15 +159,32 @@ class APITests(TestCase):
         resp = self.client.post('/api/v1/project/',
                                 data=json.dumps(post_data),
                                 content_type='application/json',
-                                HTTP_AUTHORIZATION='Basic %s' % super_auth)
+                                HTTP_AUTHORIZATION=u'Basic %s' % super_auth)
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp['location'],
-                         'http://testserver/api/v1/project/24/')
+                         '/api/v1/project/24/')
         resp = self.client.get('/api/v1/project/24/', data={'format': 'json'},
-                               HTTP_AUTHORIZATION='Basic %s' % eric_auth)
+                               HTTP_AUTHORIZATION=u'Basic %s' % eric_auth)
         self.assertEqual(resp.status_code, 200)
         obj = json.loads(resp.content)
         self.assertEqual(obj['slug'], 'awesome-project')
+
+    def test_user_doesnt_get_full_api_return(self):
+        user_normal = get(User, is_staff=False)
+        user_admin = get(User, is_staff=True)
+        project = get(Project, main_language_project=None, conf_py_file='foo')
+        client = APIClient()
+
+        client.force_authenticate(user=user_normal)
+        resp = client.get('/api/v2/project/%s/' % (project.pk))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('conf_py_file', resp.data)
+
+        client.force_authenticate(user=user_admin)
+        resp = client.get('/api/v2/project/%s/' % (project.pk))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('conf_py_file', resp.data)
+        self.assertEqual(resp.data['conf_py_file'], 'foo')
 
     def test_invalid_make_project(self):
         """
@@ -174,7 +197,7 @@ class APITests(TestCase):
         resp = self.client.post(
             '/api/v1/project/', data=json.dumps(post_data),
             content_type='application/json',
-            HTTP_AUTHORIZATION='Basic %s' % base64.b64encode('tester:notapass')
+            HTTP_AUTHORIZATION=u'Basic %s' % base64.b64encode(b'tester:notapass').decode('utf-8')
         )
         self.assertEqual(resp.status_code, 401)
 
@@ -192,7 +215,7 @@ class APITests(TestCase):
             '/api/v1/project/',
             data=json.dumps(post_data),
             content_type='application/json',
-            HTTP_AUTHORIZATION='Basic %s' % base64.b64encode('tester:test')
+            HTTP_AUTHORIZATION=u'Basic %s' % base64.b64encode(b'tester:test').decode('utf-8')
         )
         self.assertEqual(resp.status_code, 401)
 
@@ -204,32 +227,39 @@ class APITests(TestCase):
         resp = self.client.get("/api/v1/project/", data={"format": "json"})
         self.assertEqual(resp.status_code, 200)
 
-    def test_not_highest(self):
-        resp = self.client.get(
-            "http://testserver/api/v1/version/read-the-docs/highest/0.2.1/",
-            data={"format": "json"}
-        )
-        self.assertEqual(resp.status_code, 200)
-        obj = json.loads(resp.content)
-        self.assertEqual(obj['is_highest'], False)
+    def test_project_features(self):
+        user = get(User, is_staff=True)
+        project = get(Project, main_language_project=None)
+        # One explicit, one implicit feature
+        feature1 = get(Feature, projects=[project])
+        feature2 = get(Feature, projects=[], default_true=True)
+        feature3 = get(Feature, projects=[], default_true=False)
+        client = APIClient()
 
-    def test_latest_version_highest(self):
-        resp = self.client.get(
-            "http://testserver/api/v1/version/read-the-docs/highest/latest/",
-            data={"format": "json"}
-        )
+        client.force_authenticate(user=user)
+        resp = client.get('/api/v2/project/%s/' % (project.pk))
         self.assertEqual(resp.status_code, 200)
-        obj = json.loads(resp.content)
-        self.assertEqual(obj['is_highest'], True)
+        self.assertIn('features', resp.data)
+        self.assertEqual(
+            resp.data['features'],
+            [feature1.feature_id, feature2.feature_id]
+        )
 
-    def test_real_highest(self):
-        resp = self.client.get(
-            "http://testserver/api/v1/version/read-the-docs/highest/0.2.2/",
-            data={"format": "json"}
-        )
+    def test_project_features_multiple_projects(self):
+        user = get(User, is_staff=True)
+        project1 = get(Project, main_language_project=None)
+        project2 = get(Project, main_language_project=None)
+        feature = get(Feature, projects=[project1, project2], default_true=True)
+        client = APIClient()
+
+        client.force_authenticate(user=user)
+        resp = client.get('/api/v2/project/%s/' % (project1.pk))
         self.assertEqual(resp.status_code, 200)
-        obj = json.loads(resp.content)
-        self.assertEqual(obj['is_highest'], True)
+        self.assertIn('features', resp.data)
+        self.assertEqual(
+            resp.data['features'],
+            [feature.feature_id]
+        )
 
 
 class APIImportTests(TestCase):
@@ -289,3 +319,192 @@ class APIImportTests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         repos = resp.data['results']
         self.assertEqual(len(repos), 0)
+
+
+@mock.patch('readthedocs.core.views.hooks.trigger_build')
+class IntegrationsTests(TestCase):
+
+    """Integration for webhooks, etc"""
+
+    fixtures = ['eric.json', 'test_data.json']
+
+    def setUp(self):
+        self.project = get(Project)
+        self.version = get(Version, verbose_name='master', project=self.project)
+
+    def test_github_webhook(self, trigger_build):
+        """GitHub webhook API"""
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/github/{0}/'.format(self.project.slug),
+            {'ref': 'master'},
+            format='json',
+        )
+        trigger_build.assert_has_calls([
+            mock.call(force=True, version=mock.ANY, project=self.project)
+        ])
+        resp = client.post(
+            '/api/v2/webhook/github/{0}/'.format(self.project.slug),
+            {'ref': 'non-existent'},
+            format='json',
+        )
+        trigger_build.assert_has_calls([
+            mock.call(force=True, version=mock.ANY, project=self.project)
+        ])
+
+    def test_github_invalid_webhook(self, trigger_build):
+        """GitHub webhook unhandled event"""
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/github/{0}/'.format(self.project.slug),
+            {'foo': 'bar'},
+            format='json',
+            HTTP_X_GITHUB_EVENT='pull_request',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['detail'], 'Unhandled webhook event')
+
+    def test_gitlab_webhook(self, trigger_build):
+        """GitLab webhook API"""
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/gitlab/{0}/'.format(self.project.slug),
+            {'object_kind': 'push', 'ref': 'master'},
+            format='json',
+        )
+        trigger_build.assert_has_calls([
+            mock.call(force=True, version=mock.ANY, project=self.project)
+        ])
+        resp = client.post(
+            '/api/v2/webhook/gitlab/{0}/'.format(self.project.slug),
+            {'object_kind': 'push', 'ref': 'non-existent'},
+            format='json',
+        )
+        trigger_build.assert_has_calls([
+            mock.call(force=True, version=mock.ANY, project=self.project)
+        ])
+
+    def test_gitlab_invalid_webhook(self, trigger_build):
+        """GitLab webhook unhandled event"""
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/gitlab/{0}/'.format(self.project.slug),
+            {'object_kind': 'pull_request'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['detail'], 'Unhandled webhook event')
+
+    def test_bitbucket_webhook(self, trigger_build):
+        """Bitbucket webhook API"""
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/bitbucket/{0}/'.format(self.project.slug),
+            {
+                'push': {
+                    'changes': [{
+                        'new': {
+                            'name': 'master'
+                        }
+                    }]
+                }
+            },
+            format='json',
+        )
+        trigger_build.assert_has_calls([
+            mock.call(force=True, version=mock.ANY, project=self.project)
+        ])
+        resp = client.post(
+            '/api/v2/webhook/bitbucket/{0}/'.format(self.project.slug),
+            {
+                'push': {
+                    'changes': [{
+                        'new': {
+                            'name': 'non-existent'
+                        }
+                    }]
+                }
+            },
+            format='json',
+        )
+        trigger_build.assert_has_calls([
+            mock.call(force=True, version=mock.ANY, project=self.project)
+        ])
+
+    def test_bitbucket_invalid_webhook(self, trigger_build):
+        """Bitbucket webhook unhandled event"""
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/bitbucket/{0}/'.format(self.project.slug),
+            {'foo': 'bar'},
+            format='json',
+            HTTP_X_EVENT_KEY='pull_request'
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['detail'], 'Unhandled webhook event')
+
+    def test_generic_api_fails_without_auth(self, trigger_build):
+        client = APIClient()
+        resp = client.post(
+            '/api/v2/webhook/generic/{0}/'.format(self.project.slug),
+            {},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.data['detail'],
+            'Authentication credentials were not provided.'
+        )
+
+    def test_generic_api_respects_token_auth(self, trigger_build):
+        client = APIClient()
+        integration = Integration.objects.create(
+            project=self.project,
+            integration_type=Integration.API_WEBHOOK
+        )
+        self.assertIsNotNone(integration.token)
+        resp = client.post(
+            '/api/v2/webhook/{0}/{1}/'.format(self.project.slug, integration.pk),
+            {'token': integration.token},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.data['build_triggered'])
+        # Test nonexistent branch
+        resp = client.post(
+            '/api/v2/webhook/{0}/{1}/'.format(self.project.slug, integration.pk),
+            {'token': integration.token, 'branches': 'nonexistent'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.data['build_triggered'])
+
+    def test_generic_api_respects_basic_auth(self, trigger_build):
+        client = APIClient()
+        user = get(User)
+        self.project.users.add(user)
+        client.force_authenticate(user=user)
+        resp = client.post(
+            '/api/v2/webhook/generic/{0}/'.format(self.project.slug),
+            {},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.data['build_triggered'])
+
+    def test_generic_api_falls_back_to_token_auth(self, trigger_build):
+        client = APIClient()
+        user = get(User)
+        client.force_authenticate(user=user)
+        integration = Integration.objects.create(
+            project=self.project,
+            integration_type=Integration.API_WEBHOOK
+        )
+        self.assertIsNotNone(integration.token)
+        resp = client.post(
+            '/api/v2/webhook/{0}/{1}/'.format(self.project.slug, integration.pk),
+            {'token': integration.token},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.data['build_triggered'])

@@ -90,12 +90,14 @@ function Project (instance, view) {
                 repo_type: self.vcs(),
                 description: self.description(),
                 project_url: self.html_url(),
+                remote_repository: self.id(),
             },
             form = $('<form />');
 
         form
             .attr('action', view.urls.projects_import)
-            .attr('method', 'POST');
+            .attr('method', 'POST')
+            .hide();
 
         Object.keys(data).map(function (attr) {
             var field = $('<input>')
@@ -105,12 +107,17 @@ function Project (instance, view) {
             form.append(field);
         });
 
-
-        csrf_field = $('<input>')
+        var csrf_field = $('<input>')
             .attr('type', 'hidden')
             .attr('name', 'csrfmiddlewaretoken')
             .attr('value', view.csrf_token);
         form.append(csrf_field);
+
+        // Add a button and add the form to body to satisfy Firefox
+        var button = $('<input>')
+            .attr('type', 'submit');
+        form.append(button);
+        $('body').append(form);
 
         form.submit();
     };

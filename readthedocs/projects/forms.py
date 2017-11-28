@@ -1,26 +1,29 @@
 """Project forms"""
 
-from random import choice
-from urlparse import urlparse
+from __future__ import absolute_import
 
+from random import choice
+
+from builtins import object
 from django import forms
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.template.defaultfilters import slugify
 from django.template.loader import render_to_string
-from django.utils.translation import ugettext_lazy as _
 from django.utils.safestring import mark_safe
+from django.utils.translation import ugettext_lazy as _
+from future.backports.urllib.parse import urlparse
+from guardian.shortcuts import assign
 from textclassifier.validators import ClassifierValidator
 
-from guardian.shortcuts import assign
-
 from readthedocs.builds.constants import TAG
-from readthedocs.core.utils import trigger_build
-from readthedocs.redirects.models import Redirect
+from readthedocs.core.utils import trigger_build, slugify
+from readthedocs.integrations.models import Integration
+from readthedocs.oauth.models import RemoteRepository
 from readthedocs.projects import constants
 from readthedocs.projects.exceptions import ProjectSpamError
-from readthedocs.projects.models import Project, EmailHook, WebHook, Domain
-from readthedocs.privacy.loader import AdminPermission
+from readthedocs.projects.models import (
+    Project, ProjectRelationship, EmailHook, WebHook, Domain, Feature)
+from readthedocs.redirects.models import Redirect
 
 
 class ProjectForm(forms.ModelForm):
@@ -71,9 +74,14 @@ class ProjectBasicsForm(ProjectForm):
 
     """Form for basic project fields"""
 
-    class Meta:
+    class Meta(object):
         model = Project
         fields = ('name', 'repo', 'repo_type')
+
+    remote_repository = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=False,
+    )
 
     def __init__(self, *args, **kwargs):
         show_advanced = kwargs.pop('show_advanced', False)
@@ -85,6 +93,18 @@ class ProjectBasicsForm(ProjectForm):
             )
         self.fields['repo'].widget.attrs['placeholder'] = self.placehold_repo()
         self.fields['repo'].widget.attrs['required'] = True
+
+    def save(self, commit=True):
+        """Add remote repository relationship to the project instance"""
+        instance = super(ProjectBasicsForm, self).save(commit)
+        remote_repo = self.cleaned_data.get('remote_repository', None)
+        if remote_repo:
+            if commit:
+                remote_repo.project = self.instance
+                remote_repo.save()
+            else:
+                instance.remote_repository = remote_repo
+        return instance
 
     def clean_name(self):
         name = self.cleaned_data.get('name', '')
@@ -106,6 +126,18 @@ class ProjectBasicsForm(ProjectForm):
                   u'public (http:// or git://) clone url'))
         return repo
 
+    def clean_remote_repository(self):
+        remote_repo = self.cleaned_data.get('remote_repository', None)
+        if not remote_repo:
+            return None
+        try:
+            return RemoteRepository.objects.get(
+                pk=remote_repo,
+                users=self.user,
+            )
+        except RemoteRepository.DoesNotExist:
+            raise forms.ValidationError(_(u'Repository invalid'))
+
     def placehold_repo(self):
         return choice([
             'https://bitbucket.org/cherrypy/cherrypy',
@@ -122,18 +154,20 @@ class ProjectExtraForm(ProjectForm):
 
     """Additional project information form"""
 
-    class Meta:
+    class Meta(object):
         model = Project
         fields = (
             'description',
             'documentation_type',
-            'language', 'programming_language',
+            'language',
+            'programming_language',
             'project_url',
             'tags',
         )
 
     description = forms.CharField(
         validators=[ClassifierValidator(raises=ProjectSpamError)],
+        required=False,
         widget=forms.Textarea
     )
 
@@ -147,7 +181,7 @@ class ProjectAdvancedForm(ProjectTriggerBuildMixin, ProjectForm):
         help_text=_("(Beta) The Python interpreter used to create the virtual "
                     "environment."))
 
-    class Meta:
+    class Meta(object):
         model = Project
         fields = (
             # Standard build edits
@@ -183,7 +217,7 @@ class ProjectAdvancedForm(ProjectTriggerBuildMixin, ProjectForm):
 class UpdateProjectForm(ProjectTriggerBuildMixin, ProjectBasicsForm,
                         ProjectExtraForm):
 
-    class Meta:
+    class Meta(object):
         model = Project
         fields = (
             # Basics
@@ -197,6 +231,46 @@ class UpdateProjectForm(ProjectTriggerBuildMixin, ProjectBasicsForm,
             'project_url',
             'tags',
         )
+
+
+class ProjectRelationshipForm(forms.ModelForm):
+
+    """Form to add/update project relationships"""
+
+    parent = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta(object):
+        model = ProjectRelationship
+        exclude = []
+
+    def __init__(self, *args, **kwargs):
+        self.project = kwargs.pop('project')
+        self.user = kwargs.pop('user')
+        super(ProjectRelationshipForm, self).__init__(*args, **kwargs)
+        # Don't display the update form with an editable child, as it will be
+        # filtered out from the queryset anyways.
+        if hasattr(self, 'instance') and self.instance.pk is not None:
+            self.fields['child'].disabled = True
+        else:
+            self.fields['child'].queryset = self.get_subproject_queryset()
+
+    def clean_parent(self):
+        if self.project.superprojects.exists():
+            # This validation error is mostly for testing, users shouldn't see
+            # this in normal circumstances
+            raise forms.ValidationError(_("Subproject nesting is not supported"))
+        return self.project
+
+    def get_subproject_queryset(self):
+        """Return scrubbed subproject choice queryset
+
+        This removes projects that are either already a subproject of another
+        project, or are a superproject, as neither case is supported.
+        """
+        queryset = (Project.objects.for_admin_user(self.user)
+                    .exclude(subprojects__isnull=False)
+                    .exclude(superprojects__isnull=False))
+        return queryset
 
 
 class DualCheckboxWidget(forms.CheckboxInput):
@@ -327,44 +401,6 @@ def build_upload_html_form(project):
     return type('UploadHTMLForm', (BaseUploadHTMLForm,), attrs)
 
 
-class SubprojectForm(forms.Form):
-
-    """Project subproject form"""
-
-    subproject = forms.CharField()
-    alias = forms.CharField(required=False)
-
-    def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user')
-        self.parent = kwargs.pop('parent')
-        super(SubprojectForm, self).__init__(*args, **kwargs)
-
-    def clean_subproject(self):
-        """Normalize subproject field
-
-        Does lookup on against :py:cls:`Project` to ensure matching project
-        exists. Return the :py:cls:`Project` object instead.
-        """
-        subproject_name = self.cleaned_data['subproject']
-        subproject_qs = Project.objects.filter(slug=subproject_name)
-        if not subproject_qs.exists():
-            raise forms.ValidationError((_("Project %(name)s does not exist")
-                                         % {'name': subproject_name}))
-        subproject = subproject_qs.first()
-        if not AdminPermission.is_admin(self.user, subproject):
-            raise forms.ValidationError(_(
-                'You need to be admin of {name} in order to add it as '
-                'a subproject.'.format(name=subproject_name)))
-        return subproject
-
-    def save(self):
-        relationship = self.parent.add_subproject(
-            self.cleaned_data['subproject'],
-            alias=self.cleaned_data['alias'],
-        )
-        return relationship
-
-
 class UserForm(forms.Form):
 
     """Project user association form"""
@@ -457,6 +493,8 @@ class TranslationForm(forms.Form):
 
     def save(self):
         project = self.parent.translations.add(self.translation)
+        # Run symlinking and other sync logic to make sure we are in a good state.
+        self.parent.save()
         return project
 
 
@@ -464,7 +502,7 @@ class RedirectForm(forms.ModelForm):
 
     """Form for project redirects"""
 
-    class Meta:
+    class Meta(object):
         model = Redirect
         fields = ['redirect_type', 'from_url', 'to_url']
 
@@ -472,7 +510,10 @@ class RedirectForm(forms.ModelForm):
         self.project = kwargs.pop('project', None)
         super(RedirectForm, self).__init__(*args, **kwargs)
 
-    def save(self, **_):
+    def save(self, **_):  # pylint: disable=arguments-differ
+        # TODO this should respect the unused argument `commit`. It's not clear
+        # why this needs to be a call to `create`, instead of relying on the
+        # super `save()` call.
         redirect = Redirect.objects.create(
             project=self.project,
             redirect_type=self.cleaned_data['redirect_type'],
@@ -483,11 +524,14 @@ class RedirectForm(forms.ModelForm):
 
 
 class DomainForm(forms.ModelForm):
+
+    """Form to configure a custom domain name for a project."""
+
     project = forms.CharField(widget=forms.HiddenInput(), required=False)
 
-    class Meta:
+    class Meta(object):
         model = Domain
-        exclude = ['machine', 'cname', 'count']
+        exclude = ['machine', 'cname', 'count', 'https']
 
     def __init__(self, *args, **kwargs):
         self.project = kwargs.pop('project', None)
@@ -511,3 +555,63 @@ class DomainForm(forms.ModelForm):
         ).exclude(domain=self.cleaned_data['domain']).exists():
             raise forms.ValidationError(_(u'Only 1 Domain can be canonical at a time.'))
         return canonical
+
+
+class IntegrationForm(forms.ModelForm):
+
+    """Form to add an integration
+
+    This limits the choices of the integration type to webhook integration types
+    """
+
+    project = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta(object):
+        model = Integration
+        exclude = ['provider_data', 'exchanges']
+
+    def __init__(self, *args, **kwargs):
+        self.project = kwargs.pop('project', None)
+        super(IntegrationForm, self).__init__(*args, **kwargs)
+        # Alter the integration type choices to only provider webhooks
+        self.fields['integration_type'].choices = Integration.WEBHOOK_INTEGRATIONS
+
+    def clean_project(self):
+        return self.project
+
+    def save(self, commit=True):
+        self.instance = Integration.objects.subclass(self.instance)
+        return super(IntegrationForm, self).save(commit)
+
+
+class ProjectAdvertisingForm(forms.ModelForm):
+
+    """Project promotion opt-out form"""
+
+    class Meta(object):
+        model = Project
+        fields = ['allow_promos']
+
+    def __init__(self, *args, **kwargs):
+        self.project = kwargs.pop('project', None)
+        super(ProjectAdvertisingForm, self).__init__(*args, **kwargs)
+
+
+class FeatureForm(forms.ModelForm):
+
+    """Project feature form for dynamic admin choices
+
+    This form converts the CharField into a ChoiceField on display. The
+    underlying driver won't attempt to do validation on the choices, and so we
+    can dynamically populate this list.
+    """
+
+    feature_id = forms.ChoiceField()
+
+    class Meta(object):
+        model = Feature
+        fields = ['projects', 'feature_id', 'default_true']
+
+    def __init__(self, *args, **kwargs):
+        super(FeatureForm, self).__init__(*args, **kwargs)
+        self.fields['feature_id'].choices = Feature.FEATURES

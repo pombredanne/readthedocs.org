@@ -1,10 +1,14 @@
-"""OAuth utility functions"""
+"""OAuth utility functions."""
 
+from __future__ import absolute_import
+from builtins import object
 import logging
 from datetime import datetime
 
 from django.conf import settings
 from requests_oauthlib import OAuth2Session
+from requests.exceptions import RequestException
+from oauthlib.oauth2.rfc6749.errors import InvalidClientIdError
 from allauth.socialaccount.models import SocialAccount
 
 
@@ -18,7 +22,7 @@ class Service(object):
     """Service mapping for local accounts
 
     :param user: User to use in token lookup and session creation
-    :param account: :py:cls:`SocialAccount` instance for user
+    :param account: :py:class:`SocialAccount` instance for user
     """
 
     adapter = None
@@ -31,15 +35,15 @@ class Service(object):
 
     @classmethod
     def for_user(cls, user):
-        """Create instance if user has an account for the provider"""
+        """Return a list of instances if user has an account for the provider"""
         try:
-            account = SocialAccount.objects.get(
+            accounts = SocialAccount.objects.filter(
                 user=user,
                 provider=cls.adapter.provider_id
             )
-            return cls(user=user, account=account)
+            return [cls(user=user, account=account) for account in accounts]
         except SocialAccount.DoesNotExist:
-            return None
+            return []
 
     def get_adapter(self):
         return self.adapter
@@ -56,7 +60,7 @@ class Service(object):
     def create_session(self):
         """Create OAuth session for user
 
-        This configures the OAuth session based on the :py:cls:`SocialToken`
+        This configures the OAuth session based on the :py:class:`SocialToken`
         attributes. If there is an ``expires_at``, treat the session as an auto
         renewing token. Some providers expire tokens after as little as 2
         hours.
@@ -66,13 +70,13 @@ class Service(object):
             return None
 
         token_config = {
-            'access_token': str(token.token),
+            'access_token': token.token,
             'token_type': 'bearer',
         }
         if token.expires_at is not None:
             token_expires = (token.expires_at - datetime.now()).total_seconds()
             token_config.update({
-                'refresh_token': str(token.token_secret),
+                'refresh_token': token.token_secret,
                 'expires_in': token_expires,
             })
 
@@ -103,7 +107,6 @@ class Service(object):
                 u'expires_at': 1449218652.558185
             }
         """
-
         def _updater(data):
             token.token = data['access_token']
             token.expires_at = datetime.fromtimestamp(data['expires_at'])
@@ -111,6 +114,34 @@ class Service(object):
             log.info('Updated token %s:', token)
 
         return _updater
+
+    def paginate(self, url):
+        """Recursively combine results from service's pagination.
+
+        :param url: start url to get the data from.
+        :type url: unicode
+        """
+        try:
+            resp = self.get_session().get(url)
+            next_url = self.get_next_url_to_paginate(resp)
+            results = self.get_paginated_results(resp)
+            if next_url:
+                results.extend(self.paginate(next_url))
+            return results
+        # Catch specific exception related to OAuth
+        except InvalidClientIdError:
+            log.error('access_token or refresh_token failed: %s', url)
+            raise Exception('You should reconnect your account')
+        # Catch exceptions with request or deserializing JSON
+        except (RequestException, ValueError):
+            # Response data should always be JSON, still try to log if not though
+            try:
+                debug_data = resp.json()
+            except ValueError:
+                debug_data = resp.content
+            log.debug('paginate failed at %s with response: %s', url, debug_data)
+        finally:
+            return []
 
     def sync(self):
         raise NotImplementedError
@@ -122,7 +153,26 @@ class Service(object):
     def create_organization(self, fields):
         raise NotImplementedError
 
+    def get_next_url_to_paginate(self, response):
+        """Return the next url to feed the `paginate` method.
+
+        :param response: response from where to get the `next_url` attribute
+        :type response: requests.Response
+        """
+        raise NotImplementedError
+
+    def get_paginated_results(self, response):
+        """Return the results for the current response/page.
+
+        :param response: response from where to get the results.
+        :type response: requests.Response
+        """
+        raise NotImplementedError
+
     def setup_webhook(self, project):
+        raise NotImplementedError
+
+    def update_webhook(self, project, integration):
         raise NotImplementedError
 
     @classmethod
@@ -131,7 +181,7 @@ class Service(object):
 
         .. note::
             This should be deprecated in favor of attaching the
-            :py:cls:`RemoteRepository` to the project instance. This is a slight
+            :py:class:`RemoteRepository` to the project instance. This is a slight
             improvement on the legacy check for webhooks
         """
         # TODO Replace this check by keying project to remote repos

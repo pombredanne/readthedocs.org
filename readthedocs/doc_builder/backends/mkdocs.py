@@ -1,12 +1,19 @@
+"""MkDocs_ backend for building docs.
+
+.. _MkDocs: http://www.mkdocs.org/
+
+"""
+from __future__ import absolute_import
 import os
 import logging
 import json
 import yaml
 
 from django.conf import settings
-from django.template import Context, loader as template_loader
+from django.template import loader as template_loader
 
 from readthedocs.doc_builder.base import BaseBuilder
+from readthedocs.doc_builder.exceptions import BuildEnvironmentError
 
 log = logging.getLogger(__name__)
 
@@ -14,11 +21,25 @@ TEMPLATE_DIR = '%s/readthedocs/templates/mkdocs/readthedocs' % settings.SITE_ROO
 OVERRIDE_TEMPLATE_DIR = '%s/readthedocs/templates/mkdocs/overrides' % settings.SITE_ROOT
 
 
-class BaseMkdocs(BaseBuilder):
+def get_absolute_media_url():
+    """Get the fully qualified media URL from settings.
+
+    Mkdocs needs a full domain because it tries to link to local media files.
 
     """
-    Mkdocs builder
-    """
+    media_url = settings.MEDIA_URL
+
+    if not media_url.startswith('http'):
+        domain = getattr(settings, 'PRODUCTION_DOMAIN')
+        media_url = 'http://{}{}'.format(domain, media_url)
+
+    return media_url
+
+
+class BaseMkdocs(BaseBuilder):
+
+    """Mkdocs builder"""
+
     use_theme = True
 
     def __init__(self, *args, **kwargs):
@@ -28,84 +49,86 @@ class BaseMkdocs(BaseBuilder):
             self.build_dir)
         self.root_path = self.version.project.checkout_path(self.version.slug)
 
-    def append_conf(self, **kwargs):
-        """
-        Set mkdocs config values
-        """
+    def load_yaml_config(self):
+        """Load a YAML config.
 
-        # Pull mkdocs config data
+        Raise BuildEnvironmentError if failed due to syntax errors.
+
+        """
         try:
-            user_config = yaml.safe_load(
+            return yaml.safe_load(
                 open(os.path.join(self.root_path, 'mkdocs.yml'), 'r')
             )
         except IOError:
-            user_config = {
+            return {
                 'site_name': self.version.project.name,
             }
+        except yaml.YAMLError as exc:
+            note = ''
+            if hasattr(exc, 'problem_mark'):
+                mark = exc.problem_mark
+                note = ' (line %d, column %d)' % (mark.line + 1, mark.column + 1)
+            raise BuildEnvironmentError(
+                "Your mkdocs.yml could not be loaded, "
+                "possibly due to a syntax error%s" % (
+                    note,))
+
+    def append_conf(self, **__):
+        """Set mkdocs config values"""
+        # Pull mkdocs config data
+        user_config = self.load_yaml_config()
 
         # Handle custom docs dirs
-
         user_docs_dir = user_config.get('docs_dir')
-        if user_docs_dir:
-            user_docs_dir = os.path.join(self.root_path, user_docs_dir)
         docs_dir = self.docs_dir(docs_dir=user_docs_dir)
         self.create_index(extension='md')
         user_config['docs_dir'] = docs_dir
 
         # Set mkdocs config values
-
-        media_url = getattr(settings, 'MEDIA_URL', 'https://media.readthedocs.org')
-
-        # Mkdocs needs a full domain here because it tries to link to local media files
-        if not media_url.startswith('http'):
-            media_url = 'http://localhost:8000' + media_url
-
-        if 'extra_javascript' in user_config:
-            user_config['extra_javascript'].append('readthedocs-data.js')
-            user_config['extra_javascript'].append(
-                'readthedocs-dynamic-include.js')
-            user_config['extra_javascript'].append(
-                '%sjavascript/readthedocs-doc-embed.js' % media_url)
-        else:
-            user_config['extra_javascript'] = [
-                'readthedocs-data.js',
-                'readthedocs-dynamic-include.js',
-                '%sjavascript/readthedocs-doc-embed.js' % media_url,
-            ]
-
-        if 'extra_css' in user_config:
-            user_config['extra_css'].append(
-                '%s/css/badge_only.css' % media_url)
-            user_config['extra_css'].append(
-                '%s/css/readthedocs-doc-embed.css' % media_url)
-        else:
-            user_config['extra_css'] = [
-                '%scss/badge_only.css' % media_url,
-                '%scss/readthedocs-doc-embed.css' % media_url,
-            ]
+        media_url = get_absolute_media_url()
+        user_config.setdefault('extra_javascript', []).extend([
+            'readthedocs-data.js',
+            'readthedocs-dynamic-include.js',
+            '%sstatic/core/js/readthedocs-doc-embed.js' % media_url
+        ])
+        user_config.setdefault('extra_css', []).extend([
+            '%scss/badge_only.css' % media_url,
+            '%scss/readthedocs-doc-embed.css' % media_url,
+        ])
 
         # Set our custom theme dir for mkdocs
         if 'theme_dir' not in user_config and self.use_theme:
             user_config['theme_dir'] = TEMPLATE_DIR
 
-        yaml.dump(
+        yaml.safe_dump(
             user_config,
             open(os.path.join(self.root_path, 'mkdocs.yml'), 'w')
         )
 
-        # RTD javascript writing
+        docs_path = os.path.join(self.root_path, docs_dir)
 
+        # RTD javascript writing
+        rtd_data = self.generate_rtd_data(docs_dir=docs_dir)
+        with open(os.path.join(docs_path, 'readthedocs-data.js'), 'w') as f:
+            f.write(rtd_data)
+
+        dynamic_include = self.generate_dynamic_include()
+        with open(os.path.join(docs_path, 'readthedocs-dynamic-include.js'), 'w') as f:
+            f.write(dynamic_include)
+
+    def generate_rtd_data(self, docs_dir):
+        """Generate template properties and render readthedocs-data.js."""
         # Will be available in the JavaScript as READTHEDOCS_DATA.
         readthedocs_data = {
             'project': self.version.project.slug,
-            'version': self.version.verbose_name,
+            'version': self.version.slug,
             'language': self.version.project.language,
             'page': None,
             'theme': "readthedocs",
             'builder': "mkdocs",
             'docroot': docs_dir,
             'source_suffix': ".md",
-            'api_host': getattr(settings, 'SLUMBER_API_HOST', 'https://readthedocs.org'),
+            'api_host': getattr(settings, 'PUBLIC_API_URL', 'https://readthedocs.org'),
             'commit': self.version.project.vcs_repo(self.version.slug).commit,
         }
         data_json = json.dumps(readthedocs_data, indent=4)
@@ -116,34 +139,22 @@ class BaseMkdocs(BaseBuilder):
             'html_theme': readthedocs_data['theme'],
             'pagename': None,
         }
-        data_string = template_loader.get_template(
-            'doc_builder/data.js.tmpl'
-        ).render(data_ctx)
+        tmpl = template_loader.get_template('doc_builder/data.js.tmpl')
+        return tmpl.render(data_ctx)
 
-        data_file = open(os.path.join(self.root_path, docs_dir, 'readthedocs-data.js'), 'w+')
-        data_file.write(data_string)
-        data_file.write('\nREADTHEDOCS_DATA["page"] = mkdocs_page_name')
-        data_file.close()
-
+    def generate_dynamic_include(self):
         include_ctx = {
             'global_analytics_code': getattr(settings, 'GLOBAL_ANALYTICS_CODE', 'UA-17997319-1'),
             'user_analytics_code': self.version.project.analytics_code,
         }
-        include_string = template_loader.get_template(
-            'doc_builder/include.js.tmpl'
-        ).render(include_ctx)
-        include_file = open(
-            os.path.join(self.root_path, docs_dir, 'readthedocs-dynamic-include.js'),
-            'w+'
-        )
-        include_file.write(include_string)
-        include_file.close()
+        tmpl = template_loader.get_template('doc_builder/include.js.tmpl')
+        return tmpl.render(include_ctx)
 
-    def build(self, **kwargs):
+    def build(self):
         checkout_path = self.project.checkout_path(self.version.slug)
         build_command = [
             'python',
-            self.python_env.venv_bin(version=self.version.slug, filename='mkdocs'),
+            self.python_env.venv_bin(filename='mkdocs'),
             self.builder,
             '--clean',
             '--site-dir', self.build_dir,
@@ -153,7 +164,7 @@ class BaseMkdocs(BaseBuilder):
         cmd_ret = self.run(
             *build_command,
             cwd=checkout_path,
-            bin_path=self.python_env.venv_bin(version=self.version.slug)
+            bin_path=self.python_env.venv_bin()
         )
         return cmd_ret.successful
 
@@ -170,14 +181,14 @@ class MkdocsJSON(BaseMkdocs):
     build_dir = '_build/json'
     use_theme = False
 
-    def build(self, **kwargs):
+    def build(self):
         user_config = yaml.safe_load(
             open(os.path.join(self.root_path, 'mkdocs.yml'), 'r')
         )
         if user_config['theme_dir'] == TEMPLATE_DIR:
             del user_config['theme_dir']
-        yaml.dump(
+        yaml.safe_dump(
             user_config,
             open(os.path.join(self.root_path, 'mkdocs.yml'), 'w')
         )
-        super(MkdocsJSON, self).build(**kwargs)
+        super(MkdocsJSON, self).build()

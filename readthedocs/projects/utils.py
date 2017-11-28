@@ -1,49 +1,34 @@
 """Utility functions used by projects"""
 
+from __future__ import absolute_import
+
 import fnmatch
+import logging
 import os
 import subprocess
 import traceback
-import logging
-from httplib2 import Http
 
 import redis
+import six
+from builtins import object
 from django.conf import settings
 from django.core.cache import cache
+from httplib2 import Http
 
 
 log = logging.getLogger(__name__)
 
 
+# TODO make this a classmethod of Version
 def version_from_slug(slug, version):
-    from readthedocs.projects import tasks
-    from readthedocs.builds.models import Version
+    from readthedocs.builds.models import Version, APIVersion
     from readthedocs.restapi.client import api
     if getattr(settings, 'DONT_HIT_DB', True):
         version_data = api.version().get(project=slug, slug=version)['results'][0]
-        v = tasks.make_api_version(version_data)
+        v = APIVersion(**version_data)
     else:
         v = Version.objects.get(project__slug=slug, slug=version)
     return v
-
-
-def symlink(project):
-    """This is here to avoid circular imports in models.py"""
-    from readthedocs.projects import symlinks
-    log.info("Symlinking %s", project)
-    symlinks.symlink_cnames(project)
-    symlinks.symlink_translations(project)
-    symlinks.symlink_subprojects(project)
-    if project.single_version:
-        symlinks.symlink_single_version(project)
-    else:
-        symlinks.remove_symlink_single_version(project)
-
-
-def update_static_metadata(project_pk):
-    """This is here to avoid circular imports in models.py"""
-    from readthedocs.projects import tasks
-    tasks.update_static_metadata.delay(project_pk)
 
 
 def find_file(filename):
@@ -54,13 +39,17 @@ def find_file(filename):
     """
     matches = []
     for root, __, filenames in os.walk('.'):
-        for filename in fnmatch.filter(filenames, filename):
-            matches.append(os.path.join(root, filename))
+        for match in fnmatch.filter(filenames, filename):
+            matches.append(os.path.join(root, match))
     return matches
 
 
-def run(*commands, **kwargs):
+def run(*commands):
     """Run one or more commands
+
+    Each argument in `commands` can be passed as a string or as a list. Passing
+    as a list is the preferred method, as space escaping is more explicit and it
+    avoids the need for executing anything in a shell.
 
     If more than one command is given, then this is equivalent to
     chaining them together with ``&&``; if all commands succeed, then
@@ -83,19 +72,27 @@ def run(*commands, **kwargs):
     cwd = os.getcwd()
     if not commands:
         raise ValueError("run() requires one or more command-line strings")
-    shell = kwargs.get('shell', False)
 
     for command in commands:
-        if shell:
-            log.info("Running commands in a shell")
-            run_command = command
-        else:
+        # If command is a string, split it up by spaces to pass into Popen.
+        # Otherwise treat the command as an iterable.
+        if isinstance(command, six.string_types):
             run_command = command.split()
-        log.info("Running: '%s' [%s]", command, cwd)
+        else:
+            try:
+                run_command = list(command)
+                command = ' '.join(command)
+            except TypeError:
+                run_command = command
+        log.debug('Running command: cwd=%s command=%s', cwd, command)
         try:
-            p = subprocess.Popen(run_command, shell=shell, cwd=cwd,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, env=environment)
+            p = subprocess.Popen(
+                run_command,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=environment
+            )
 
             out, err = p.communicate()
             ret = p.returncode
@@ -103,7 +100,7 @@ def run(*commands, **kwargs):
             out = ''
             err = traceback.format_exc()
             ret = -1
-            log.error("Command failed", exc_info=True)
+            log.exception("Command failed")
 
     return (ret, out, err)
 
@@ -171,36 +168,3 @@ class DictObj(object):
 
     def __getattr__(self, attr):
         return self.__dict__.get(attr)
-
-
-# Prevent saving the temporary Project instance
-def _new_save(*dummy_args, **dummy_kwargs):
-    log.warning("Called save on a non-real object.")
-    return 0
-
-
-def make_api_version(version_data):
-    """Make mock Version instance from API return"""
-    from readthedocs.builds.models import Version
-    for key in ['resource_uri', 'absolute_url', 'downloads']:
-        if key in version_data:
-            del version_data[key]
-    project_data = version_data['project']
-    project = make_api_project(project_data)
-    version_data['project'] = project
-    ver = Version(**version_data)
-    ver.save = _new_save
-
-    return ver
-
-
-def make_api_project(project_data):
-    """Make mock Project instance from API return"""
-    from readthedocs.projects.models import Project
-    for key in ['users', 'resource_uri', 'absolute_url', 'downloads',
-                'main_language_project', 'related_projects']:
-        if key in project_data:
-            del project_data[key]
-    project = Project(**project_data)
-    project.save = _new_save
-    return project

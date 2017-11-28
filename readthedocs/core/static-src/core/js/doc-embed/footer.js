@@ -72,7 +72,9 @@ function injectFooter(data) {
             data.promo_data.id,
             data.promo_data.text,
             data.promo_data.link,
-            data.promo_data.image
+            data.promo_data.image,
+            config.theme,
+            data.promo_data.display_type
         )
         if (promo) {
             promo.display();

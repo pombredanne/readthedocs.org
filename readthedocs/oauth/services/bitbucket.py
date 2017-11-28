@@ -1,15 +1,19 @@
 """OAuth utility functions"""
 
+from __future__ import absolute_import
+from builtins import str
 import logging
 import json
 import re
 
 from django.conf import settings
+from django.core.urlresolvers import reverse
 from requests.exceptions import RequestException
 from allauth.socialaccount.providers.bitbucket_oauth2.views import (
     BitbucketOAuth2Adapter)
 
 from readthedocs.builds import utils as build_utils
+from readthedocs.integrations.models import Integration
 
 from ..models import RemoteOrganization, RemoteRepository
 from .base import Service
@@ -26,7 +30,7 @@ class BitbucketService(Service):
 
     adapter = BitbucketOAuth2Adapter
     # TODO replace this with a less naive check
-    url_pattern = re.compile(r'bitbucket.org\/')
+    url_pattern = re.compile(r'bitbucket.org')
     https_url_pattern = re.compile(r'^https:\/\/[^@]+@bitbucket.org/')
 
     def sync(self):
@@ -105,7 +109,7 @@ class BitbucketService(Service):
                 account=self.account,
             )
             if repo.organization and repo.organization != organization:
-                log.debug('Not importing %s because mismatched orgs' %
+                log.debug('Not importing %s because mismatched orgs',
                           fields['name'])
                 return None
             else:
@@ -137,7 +141,7 @@ class BitbucketService(Service):
             repo.save()
             return repo
         else:
-            log.debug('Not importing %s because mismatched type' %
+            log.debug('Not importing %s because mismatched type',
                       fields['name'])
 
     def create_organization(self, fields):
@@ -160,35 +164,44 @@ class BitbucketService(Service):
         organization.save()
         return organization
 
-    def paginate(self, url):
-        """Recursively combine results from Bitbucket pagination
+    def get_next_url_to_paginate(self, response):
+        return response.json().get('next')
 
-        :param url: start url to get the data from.
-        """
-        resp = self.get_session().get(url)
-        data = resp.json()
-        results = data.get('values', [])
-        next_url = data.get('next')
-        if next_url:
-            results.extend(self.paginate(next_url))
-        return results
+    def get_paginated_results(self, response):
+        return response.json().get('values', [])
+
+    def get_webhook_data(self, project, integration):
+        """Get webhook JSON data to post to the API"""
+        return json.dumps({
+            'description': 'Read the Docs ({domain})'.format(domain=settings.PRODUCTION_DOMAIN),
+            'url': 'https://{domain}{path}'.format(
+                domain=settings.PRODUCTION_DOMAIN,
+                path=reverse(
+                    'api_webhook',
+                    kwargs={'project_slug': project.slug,
+                            'integration_pk': integration.pk}
+                )
+            ),
+            'active': True,
+            'events': ['repo:push'],
+        })
 
     def setup_webhook(self, project):
         """Set up Bitbucket project webhook for project
 
         :param project: project to set up webhook for
         :type project: Project
-        :returns: boolean based on webhook set up success
-        :rtype: bool
+        :returns: boolean based on webhook set up success, and requests Response object
+        :rtype: (Bool, Response)
         """
         session = self.get_session()
         owner, repo = build_utils.get_bitbucket_username_repo(url=project.repo)
-        data = json.dumps({
-            'description': 'Read the Docs ({domain})'.format(domain=settings.PRODUCTION_DOMAIN),
-            'url': 'https://{domain}/bitbucket'.format(domain=settings.PRODUCTION_DOMAIN),
-            'active': True,
-            'events': ['repo:push'],
-        })
+        integration, _ = Integration.objects.get_or_create(
+            project=project,
+            integration_type=Integration.BITBUCKET_WEBHOOK,
+        )
+        data = self.get_webhook_data(project, integration)
+        resp = None
         try:
             resp = session.post(
                 ('https://api.bitbucket.org/2.0/repositories/{owner}/{repo}/hooks'
@@ -197,13 +210,65 @@ class BitbucketService(Service):
                 headers={'content-type': 'application/json'}
             )
             if resp.status_code == 201:
+                recv_data = resp.json()
+                integration.provider_data = recv_data
+                integration.save()
                 log.info('Bitbucket webhook creation successful for project: %s',
                          project)
-                return True
-        except RequestException:
+                return (True, resp)
+        # Catch exceptions with request or deserializing JSON
+        except (RequestException, ValueError):
             log.error('Bitbucket webhook creation failed for project: %s',
                       project, exc_info=True)
         else:
             log.error('Bitbucket webhook creation failed for project: %s',
                       project)
-            return False
+            try:
+                log.debug('Bitbucket webhook creation failure response: %s',
+                          resp.json())
+            except ValueError:
+                pass
+            return (False, resp)
+
+    def update_webhook(self, project, integration):
+        """Update webhook integration
+
+        :param project: project to set up webhook for
+        :type project: Project
+        :param integration: Webhook integration to update
+        :type integration: Integration
+        :returns: boolean based on webhook set up success, and requests Response object
+        :rtype: (Bool, Response)
+        """
+        session = self.get_session()
+        data = self.get_webhook_data(project, integration)
+        resp = None
+        try:
+            # Expect to throw KeyError here if provider_data is invalid
+            url = integration.provider_data['links']['self']['href']
+            resp = session.put(
+                url,
+                data=data,
+                headers={'content-type': 'application/json'}
+            )
+            if resp.status_code == 200:
+                recv_data = resp.json()
+                integration.provider_data = recv_data
+                integration.save()
+                log.info('Bitbucket webhook update successful for project: %s',
+                         project)
+                return (True, resp)
+        # Catch exceptions with request or deserializing JSON
+        except (KeyError, RequestException, ValueError):
+            log.error('Bitbucket webhook update failed for project: %s',
+                      project, exc_info=True)
+        else:
+            log.error('Bitbucket webhook update failed for project: %s',
+                      project)
+            # Response data should always be JSON, still try to log if not though
+            try:
+                debug_data = resp.json()
+            except ValueError:
+                debug_data = resp.content
+            log.debug('Bitbucket webhook update failure response: %s', debug_data)
+            return (False, resp)

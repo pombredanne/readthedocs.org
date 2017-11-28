@@ -1,8 +1,13 @@
 """Project version handling"""
+from __future__ import absolute_import
 
+import unicodedata
 from collections import defaultdict
+
+from builtins import (object, range)
 from packaging.version import Version
 from packaging.version import InvalidVersion
+import six
 
 from readthedocs.builds.constants import LATEST_VERBOSE_NAME
 from readthedocs.builds.constants import STABLE_VERBOSE_NAME
@@ -35,24 +40,24 @@ class VersionManager(object):
         all_keys = sorted(set(self._state.keys()))
         major_keep = []
         for __ in range(num_latest):
-            if len(all_keys) > 0:
+            if all_keys:
                 major_keep.append(all_keys.pop(-1))
         for to_remove in all_keys:
             del self._state[to_remove]
 
     def prune_minor(self, num_latest):
-        for major, minors in self._state.items():
+        for major, minors in list(self._state.items()):
             all_keys = sorted(set(minors.keys()))
             minor_keep = []
             for __ in range(num_latest):
-                if len(all_keys) > 0:
+                if all_keys:
                     minor_keep.append(all_keys.pop(-1))
             for to_remove in all_keys:
                 del self._state[major][to_remove]
 
     def prune_point(self, num_latest):
-        for major, minors in self._state.items():
-            for minor in minors.keys():
+        for major, minors in list(self._state.items()):
+            for minor in list(minors.keys()):
                 try:
                     self._state[major][minor] = sorted(
                         set(self._state[major][minor]))[-num_latest:]
@@ -62,8 +67,8 @@ class VersionManager(object):
 
     def get_version_list(self):
         versions = []
-        for major_val in self._state.values():
-            for version_list in major_val.values():
+        for major_val in list(self._state.values()):
+            for version_list in list(major_val.values()):
                 versions.extend(version_list)
         versions = sorted(versions)
         return [
@@ -75,7 +80,7 @@ class VersionManager(object):
 def version_windows(versions, major=1, minor=1, point=1):
     """Return list of versions that have been pruned to version windows
 
-    Uses :py:cls:`VersionManager` to prune the list of versions
+    Uses :py:class:`VersionManager` to prune the list of versions
 
     :param versions: List of version strings
     :param major: Major version window
@@ -89,7 +94,7 @@ def version_windows(versions, major=1, minor=1, point=1):
     for version_string in versions:
         try:
             version_identifiers.append(Version(version_string))
-        except InvalidVersion:
+        except (InvalidVersion, UnicodeEncodeError):
             pass
 
     major_version_window = major
@@ -106,19 +111,26 @@ def version_windows(versions, major=1, minor=1, point=1):
 
 
 def parse_version_failsafe(version_string):
+    if not isinstance(version_string, six.text_type):
+        uni_version = version_string.decode('utf-8')
+    else:
+        uni_version = version_string
+
     try:
-        return Version(version_string)
-    except InvalidVersion:
+        normalized_version = unicodedata.normalize('NFKD', uni_version)
+        ascii_version = normalized_version.encode('ascii', 'ignore')
+        final_form = ascii_version.decode('ascii')
+        return Version(final_form)
+    except (UnicodeError, InvalidVersion):
         return None
 
 
 def comparable_version(version_string):
     """This can be used as ``key`` argument to ``sorted``.
 
-    The ``LATEST`` version shall always beat other versions in comparision.
+    The ``LATEST`` version shall always beat other versions in comparison.
     ``STABLE`` should be listed second. If we cannot figure out the version
-    number then we still assume it's bigger than all other versions since we
-    cannot predict what it is.
+    number then we sort it to the bottom of the list.
     """
     comparable = parse_version_failsafe(version_string)
     if not comparable:
@@ -127,7 +139,7 @@ def comparable_version(version_string):
         elif version_string == STABLE_VERBOSE_NAME:
             comparable = Version('9999.0')
         else:
-            comparable = Version('999.0')
+            comparable = Version('0.01')
     return comparable
 
 
@@ -156,8 +168,7 @@ def highest_version(version_list):
     versions = sort_versions(version_list)
     if versions:
         return versions[0]
-    else:
-        return (None, None)
+    return (None, None)
 
 
 def determine_stable_version(version_list):
@@ -175,5 +186,4 @@ def determine_stable_version(version_list):
     if versions:
         version_obj, comparable = versions[0]
         return version_obj
-    else:
-        return None
+    return None

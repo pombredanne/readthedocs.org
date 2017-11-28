@@ -1,21 +1,27 @@
+"""
+Build documentation using the API and not hitting a database.
+
+Usage::
+
+    ./manage.py update_api <slug>
+"""
+
+from __future__ import absolute_import
 import logging
 
 from django.core.management.base import BaseCommand
-from readthedocs.projects import tasks
+
 from readthedocs.api.client import api
+from readthedocs.projects import tasks
+from readthedocs.projects.models import APIProject
 
 
 log = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    """
-    Build documentation using the API and not hitting a database.
 
-    Usage::
-
-        ./manage.py update_api <slug>
-    """
+    help = __doc__
 
     def add_arguments(self, parser):
         parser.add_argument('--docker', action='store_true', default=False)
@@ -25,6 +31,7 @@ class Command(BaseCommand):
         docker = options.get('docker', False)
         for slug in options['projects']:
             project_data = api.project(slug).get()
-            p = tasks.make_api_project(project_data)
-            log.info("Building %s" % p)
-            tasks.update_docs.run(pk=p.pk, docker=docker)
+            p = APIProject(**project_data)
+            log.info("Building %s", p)
+            update_docs = tasks.UpdateDocsTask()
+            update_docs.run(pk=p.pk, docker=docker)

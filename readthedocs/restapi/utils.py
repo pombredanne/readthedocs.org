@@ -1,7 +1,8 @@
+"""Utility functions that are used by both views and celery tasks."""
+
+from __future__ import absolute_import
 import hashlib
 import logging
-
-import requests
 
 from readthedocs.builds.constants import NON_REPOSITORY_VERSIONS
 from readthedocs.builds.models import Version
@@ -10,10 +11,8 @@ from readthedocs.search.indexes import PageIndex, ProjectIndex, SectionIndex
 log = logging.getLogger(__name__)
 
 
-def sync_versions(project, versions, type):
-    """
-    Update the database with the current versions from the repository.
-    """
+def sync_versions(project, versions, type):  # pylint: disable=redefined-builtin
+    """Update the database with the current versions from the repository."""
     # Bookkeeping for keeping tag/branch identifies correct
     verbose_names = [v['verbose_name'] for v in versions]
     project.versions.filter(verbose_name__in=verbose_names).update(type=type)
@@ -28,7 +27,7 @@ def sync_versions(project, versions, type):
     for version in versions:
         version_id = version['identifier']
         version_name = version['verbose_name']
-        if version_name in old_versions.keys():
+        if version_name in list(old_versions.keys()):
             if version_id == old_versions[version_name]:
                 # Version is correct
                 continue
@@ -41,8 +40,8 @@ def sync_versions(project, versions, type):
                     type=type,
                     machine=False,
                 )
-                log.info("(Sync Versions) Updated Version: [%s=%s] " % (
-                    version['verbose_name'], version['identifier']))
+                log.info("(Sync Versions) Updated Version: [%s=%s] ",
+                         version['verbose_name'], version['identifier'])
         else:
             # New Version
             created_version = Version.objects.create(
@@ -53,14 +52,12 @@ def sync_versions(project, versions, type):
             )
             added.add(created_version.slug)
     if added:
-        log.info("(Sync Versions) Added Versions: [%s] " % ' '.join(added))
+        log.info("(Sync Versions) Added Versions: [%s] ", ' '.join(added))
     return added
 
 
 def delete_versions(project, version_data):
-    """
-    Delete all versions not in the current repo.
-    """
+    """Delete all versions not in the current repo."""
     current_versions = []
     if 'tags' in version_data:
         for version in version_data['tags']:
@@ -76,23 +73,26 @@ def delete_versions(project, version_data):
 
     if to_delete_qs.count():
         ret_val = {obj.slug for obj in to_delete_qs}
-        log.info("(Sync Versions) Deleted Versions: [%s]" % ' '.join(ret_val))
+        log.info("(Sync Versions) Deleted Versions: [%s]", ' '.join(ret_val))
         to_delete_qs.delete()
         return ret_val
-    else:
-        return set()
+    return set()
 
 
 def index_search_request(version, page_list, commit, project_scale, page_scale,
                          section=True, delete=True):
-    log_msg = ' '.join([page['path'] for page in page_list])
-    log.info("(Server Search) Indexing Pages: %s [%s]" % (
-        version.project.slug, log_msg))
-    project = version.project
-    page_obj = PageIndex()
-    section_obj = SectionIndex()
+    """Update search indexes with build output JSON
 
-    # tags = [tag.name for tag in project.tags.all()]
+    In order to keep sub-projects all indexed on the same shard, indexes will be
+    updated using the parent project's slug as the routing value.
+    """
+    # TODO refactor this function
+    # pylint: disable=too-many-locals
+    project = version.project
+
+    log_msg = ' '.join([page['path'] for page in page_list])
+    log.info("Updating search index: project=%s pages=[%s]",
+             project.slug, log_msg)
 
     project_obj = ProjectIndex()
     project_obj.index_document(data={
@@ -107,11 +107,16 @@ def index_search_request(version, page_list, commit, project_scale, page_scale,
         'weight': project_scale,
     })
 
+    page_obj = PageIndex()
+    section_obj = SectionIndex()
     index_list = []
     section_index_list = []
+    routes = [project.slug]
+    routes.extend([p.parent.slug for p in project.superprojects.all()])
     for page in page_list:
-        log.debug("(API Index) %s:%s" % (project.slug, page['path']))
-        page_id = hashlib.md5('%s-%s-%s' % (project.slug, version.slug, page['path'])).hexdigest()
+        log.debug("Indexing page: %s:%s", project.slug, page['path'])
+        to_hash = '-'.join([project.slug, version.slug, page['path']])
+        page_id = hashlib.md5(to_hash.encode('utf-8')).hexdigest()
         index_list.append({
             'id': page_id,
             'project': project.slug,
@@ -125,26 +130,28 @@ def index_search_request(version, page_list, commit, project_scale, page_scale,
             'weight': page_scale + project_scale,
         })
         if section:
-            for section in page['sections']:
+            for sect in page['sections']:
+                id_to_hash = '-'.join([project.slug, version.slug,
+                                       page['path'], sect['id']])
                 section_index_list.append({
-                    'id': hashlib.md5(
-                        '%s-%s-%s-%s' % (project.slug, version.slug,
-                                         page['path'], section['id'])
-                    ).hexdigest(),
+                    'id': (hashlib.md5(id_to_hash.encode('utf-8')).hexdigest()),
                     'project': project.slug,
                     'version': version.slug,
                     'path': page['path'],
-                    'page_id': section['id'],
-                    'title': section['title'],
-                    'content': section['content'],
+                    'page_id': sect['id'],
+                    'title': sect['title'],
+                    'content': sect['content'],
                     'weight': page_scale,
                 })
-            section_obj.bulk_index(section_index_list, parent=page_id, routing=project.slug)
+            for route in routes:
+                section_obj.bulk_index(section_index_list, parent=page_id,
+                                       routing=route)
 
-    page_obj.bulk_index(index_list, parent=project.slug)
+    for route in routes:
+        page_obj.bulk_index(index_list, parent=project.slug, routing=route)
 
     if delete:
-        log.info("(Server Search) Deleting files not in commit: %s" % commit)
+        log.info("Deleting files not in commit: %s", commit)
         # TODO: AK Make sure this works
         delete_query = {
             "query": {
